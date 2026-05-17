@@ -1,762 +1,337 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
-法学论文质检自查 Agent
+法学论文质检自查 Agent —— unified-thesis-reviewer 总编排器
 
-unified-thesis-reviewer 总编排器
-整合 legal-thesis-reviewer 和 legal-citation-checker
+核心职责：
+1. 接收论文文件（docx / pdf / txt / md）或 URL
+2. 调用 UTR 工具链执行一站式审查
+3. 生成 .annotated.docx 或 .annotated.pdf 批注文档
+4. 返回 Markdown 总报告 + issues.json + 修改建议
 """
 
-import json
-import logging
 import os
-import re
 import sys
+import json
 import tempfile
-from pathlib import Path
-from typing import Annotated, Any, Dict, List, Optional
+import traceback
+from typing import Any, Dict, List, Optional
 
+from langchain.tools import tool
 from langchain.agents import create_agent
-from langchain_core.messages import AnyMessage
-from langchain_core.tools import tool
-from langgraph.graph import MessagesState
-from langgraph.graph.message import add_messages
+from langchain.agents.middleware import wrap_tool_call
+from langchain_core.messages import AnyMessage, ToolMessage
 from langchain_openai import ChatOpenAI
+from coze_coding_utils.runtime_ctx.context import default_headers
+from storage.memory.memory_saver import get_memory_saver
 
-# SDK导入（延迟加载，避免LSP报错）
-# from coze_coding_dev_sdk import WebSearchClient, FetchUrlClient, DocumentGenerationClient
-
-# 导入工具脚本
-from tools.thesis_review_tools import (
-    PaperAnalysis,
-    ThesisReviewer,
-    CitationChecker,
-    WebVerifier,
-    AnnotationGenerator,
-    MarkdownReportGenerator,
-)
-
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
-
+# ---------------------------------------------------------------------------
+# 常量 / 路径
+# ---------------------------------------------------------------------------
 LLM_CONFIG = "config/agent_llm_config.json"
-MAX_MESSAGES = 40
+UTR_BUNDLE = os.path.join(os.path.dirname(__file__), "..", "tools", "scripts", "utr-bundle")
 
-# 不定义自定义AgentState，使用langgraph默认的AgentState
-# 如果需要扩展状态，可以在运行时通过context管理
-
-
-# ============================================================================
-# 工具函数定义
-# ============================================================================
-
-@tool
-def welcome_and_guide() -> str:
-    """
-    欢迎引导工具。
-
-    返回Agent的开场白和引导信息。
-    用户首次对话或需要说明时调用。
-    """
-    return """请上传论文初稿的 Word 或文本型 PDF。
-
-我会进行一次严格的法学论文质检，包括：
-- 问题意识与选题价值
-- 结构逻辑与章节比例
-- 论证严谨性与深度
-- 文献综述质量
-- 实证与案例分析规范性
-- 法律规范适用准确性
-- 对策建议可行性
-- 学术不端风险预警
-- 引注格式专项校对（GB/T 7714 / 法学引注手册）
-- 引用真实性联网核实
-
-完成后我会返回：
-- 带逐处批注的 Word/PDF 文件（可直接对照修改）
-- 完整 Markdown 审查报告
-- 问题清单和 Top 10 优先修改清单
-
-**上传时请说明**（如未说明我会自动推断）：
-- 论文类型：本科 / 硕士 / 博士 / 期刊投稿 / 课程论文
-- 引注格式：GB/T 7714 / 法学引注手册 / 学校指定模板
-"""
+def _utr_tool_path(name: str) -> str:
+    return os.path.join(UTR_BUNDLE, "unified-thesis-reviewer", "tools", name)
 
 
-@tool
-def read_paper_file(file_input: str) -> Dict[str, Any]:
-    """
-    读取论文文件。
-
-    支持多种输入方式：
-    - 本地文件路径（如：/tmp/paper.docx）
-    - 文件URL（如：https://example.com/paper.docx）
-    - Coze平台文件ID（如：file_xxxxxx 或 file_path）
-
-    支持格式：.docx, .pdf（文本型）, .txt, .md
-    扫描件PDF无法处理，会提示用户换用Word或OCR。
-
-    Args:
-        file_input: 文件路径、URL或文件ID
-
-    Returns:
-        包含论文文本、结构分析、元数据的字典
-    """
-    logger.info(f"读取论文文件: {file_input}")
-
-    # 导入必要的模块
-    import os
-    import tempfile
-    import requests
-    from urllib.parse import urlparse
-
-    # 判断输入类型
-    is_url = file_input.startswith(('http://', 'https://'))
-    is_coze_file = file_input.startswith(('file_', 'file-id:', 'attach_')) or '/' not in file_input and '.' not in file_input
-
-    file_path = file_input
-    temp_file = None
-
-    # 如果是URL，先下载到临时文件
-    if is_url:
-        try:
-            response = requests.get(file_input, timeout=30)
-            response.raise_for_status()
-            # 从URL中提取文件名
-            parsed = urlparse(file_input)
-            filename = os.path.basename(parsed.path)
-            if not filename or '.' not in filename:
-                filename = 'uploaded_file'
-            # 保存到临时文件
-            temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(filename)[1] if '.' in filename else '.tmp')
-            temp_file.write(response.content)
-            temp_file.close()
-            file_path = temp_file.name
-            logger.info(f"从URL下载文件到: {file_path}")
-        except Exception as e:
-            return {
-                "success": False,
-                "error": f"从URL下载文件失败: {str(e)}"
-            }
-    elif is_coze_file:
-        # Coze平台文件：尝试从环境变量或配置获取文件
-        # 首先检查是否是Coze平台的文件路径（通常在/tmp或特定目录下）
-        coze_file_paths = [
-            f"/tmp/{file_input}",
-            f"/tmp/uploads/{file_input}",
-            f"/workspace/projects/assets/{file_input}",
-            file_input  # 直接尝试作为路径
-        ]
-        found = False
-        for path in coze_file_paths:
-            if os.path.exists(path):
-                file_path = path
-                found = True
-                break
-        if not found:
-            # 如果是Coze上传的文件，可能在临时目录中
-            for root, dirs, files in os.walk('/tmp'):
-                if file_input in files:
-                    file_path = os.path.join(root, file_input)
-                    found = True
-                    break
-                # 也检查不带扩展名的文件
-                for f in files:
-                    if file_input in f:
-                        file_path = os.path.join(root, f)
-                        found = True
-                        break
-                if found:
-                    break
-        if not found:
-            return {
-                "success": False,
-                "error": f"无法找到Coze平台上传的文件: {file_input}。请确认文件已上传成功。"
-            }
-    else:
-        # 本地文件路径
-        if not os.path.exists(file_path):
-            return {
-                "success": False,
-                "error": f"文件不存在: {file_path}"
-            }
-
-    path = Path(file_path)
-    if not path.exists():
-        return {
-            "success": False,
-            "error": f"文件不存在: {file_path}"
-        }
-
-    suffix = path.suffix.lower()
-
+# ---------------------------------------------------------------------------
+# 底层读取函数（供 @tool 和非 @tool 共用）
+# ---------------------------------------------------------------------------
+def _read_text(file_path: str) -> dict:
+    """从本地路径或公网 URL 读取文本。"""
     try:
-        if suffix == '.docx':
-            result = _read_docx(file_path)
-        elif suffix == '.pdf':
-            result = _read_pdf(file_path)
-        elif suffix in ['.txt', '.md']:
-            result = _read_text(file_path)
-        else:
-            result = {
-                "success": False,
-                "error": f"不支持的文件格式: {suffix}。请上传 .docx、.pdf、.txt 或 .md 文件。"
-            }
-    finally:
-        # 清理临时文件
-        if temp_file and os.path.exists(temp_file.name):
+        path = file_path.strip()
+        # URL 下载
+        if path.startswith("http://") or path.startswith("https://"):
+            import requests
+            resp = requests.get(path, timeout=30)
+            if resp.status_code == 200:
+                content = resp.text
+            else:
+                return {"success": False, "error": f"URL 返回状态码 {resp.status_code}"}
+            fmt = "docx" if path.endswith(".docx") else \
+                  "pdf" if path.endswith(".pdf") else \
+                  "txt" if path.endswith(".txt") else \
+                  "md" if path.endswith(".md") else "txt"
+            return {"success": True, "text": content, "format": fmt, "file_name": path.split("/")[-1]}
+
+        # Coze 平台 file_id（形如 file_xxx）
+        if path.startswith("file_") and not os.path.exists(path):
             try:
-                os.unlink(temp_file.name)
-            except:
-                pass
+                import coze_coding_utils.file as cf_mod  # type: ignore[import]  # LSP误报：运行时模块存在
+                coze_file = getattr(cf_mod, "file", cf_mod)  # type: ignore[assignment]  # LSP误报：动态获取属性
+                fpath = coze_file.get_file(path).file_path  # type: ignore[attr-defined]  # LSP误报：运行时方法存在
+                path = fpath
+            except Exception:
+                return {"success": False, "error": f"无法通过平台 file_id 获取文件: {path}"}
 
-    if result.get("success"):
-        result["file_path"] = str(path)
-        result["file_name"] = path.name
-        result["file_size"] = path.stat().st_size if path.exists() else 0
+        if not os.path.exists(path):
+            return {"success": False, "error": f"文件不存在: {path}"}
 
-    return result
+        ext = os.path.splitext(path)[1].lower()
 
+        # docx
+        if ext == ".docx":
+            import subprocess
+            extract_script = _utr_tool_path("extract-docx.py")
+            if os.path.exists(extract_script):
+                proc = subprocess.run(
+                    [sys.executable, extract_script, path, "-"],
+                    capture_output=True, text=True, timeout=120
+                )
+                if proc.returncode == 0:
+                    return {"success": True, "text": proc.stdout, "format": "docx", "file_name": os.path.basename(path)}
+                else:
+                    # fallback 到 python-docx
+                    from docx import Document
+                    doc = Document(path)
+                    paragraphs = [p.text for p in doc.paragraphs]
+                    return {"success": True, "text": "\n".join(paragraphs), "format": "docx", "file_name": os.path.basename(path)}
+            else:
+                from docx import Document
+                doc = Document(path)
+                paragraphs = [p.text for p in doc.paragraphs]
+                return {"success": True, "text": "\n".join(paragraphs), "format": "docx", "file_name": os.path.basename(path)}
 
-def _read_docx(file_path: str) -> Dict[str, Any]:
-    """读取Word文档"""
-    try:
-        from tools.scripts.extract_docx import DOCXTextExtractor
+        # pdf
+        if ext == ".pdf":
+            try:
+                import fitz
+                doc = fitz.open(path)
+                if doc.is_encrypted:
+                    doc.close()
+                    return {"success": False, "error": "PDF 已加密", "is_encrypted": True}
+                total_chars = sum(len(page.get_text()) for page in doc)  # type: ignore
+                if total_chars == 0:
+                    doc.close()
+                    return {"success": False, "error": "PDF 为扫描件或图片型 PDF，无法提取文本。请换用 Word 版本或 OCR 后再试。", "is_scanned": True}
+                texts = []
+                for i, page in enumerate(doc):
+                    texts.append(f"--- Page {i + 1} ---\n{page.get_text()}")  # type: ignore
+                doc.close()
+                return {"success": True, "text": "\n".join(texts), "format": "pdf", "page_count": len(texts), "total_chars": total_chars, "file_name": os.path.basename(path)}
+            except ImportError:
+                return {"success": False, "error": "PyMuPDF (fitz) 未安装，无法读取 PDF"}
 
-        with DOCXTextExtractor(file_path) as extractor:
-            result = extractor.extract_structured()
+        # txt / md / 其他纯文本
+        with open(path, "r", encoding="utf-8", errors="ignore") as f:
+            content = f.read()
+        return {"success": True, "text": content, "format": ext.lstrip("."), "file_name": os.path.basename(path)}
 
-        return {
-            "success": True,
-            "format": "docx",
-            "text": result["text"],
-            "structure": result["structure"],
-            "metadata": result["metadata"],
-            "blocks": result.get("blocks", []),
-            "footnotes": result.get("footnotes", []),
-            "references": result.get("references", []),
-        }
     except Exception as e:
-        logger.error(f"读取Word文档失败: {e}")
-        return {
-            "success": False,
-            "error": f"读取Word文档失败: {str(e)}"
-        }
+        return {"success": False, "error": f"文件读取失败: {str(e)}"}
 
 
-def _read_pdf(file_path: str) -> Dict[str, Any]:
-    """读取PDF文档"""
-    try:
-        from tools.scripts.extract_pdf_text import PDFTextExtractor
-
-        with PDFTextExtractor(file_path) as extractor:
-            result = extractor.extract_structured()
-
-        # 检查是否为扫描件
-        if result.get("report", {}).get("is_likely_scanned"):
-            return {
-                "success": False,
-                "error": "该PDF可能是扫描件，无法提取文本。请使用OCR转换后的文本型PDF，或提供Word版本。",
-                "is_scanned": True,
-            }
-
-        return {
-            "success": True,
-            "format": "pdf",
-            "text": result["text"],
-            "structure": result["structure"],
-            "metadata": result["metadata"],
-            "footnotes": result.get("footnotes", []),
-            "references": result.get("references", []),
-            "extraction_report": result.get("report", {}),
-        }
-    except Exception as e:
-        logger.error(f"读取PDF失败: {e}")
-        return {
-            "success": False,
-            "error": f"读取PDF失败: {str(e)}"
-        }
-
-
-def _read_text(file_path: str) -> Dict[str, Any]:
-    """读取纯文本文件"""
-    try:
-        with open(file_path, 'r', encoding='utf-8') as f:
-            text = f.read()
-
-        # 简单分析结构
-        lines = text.split('\n')
-        structure = {
-            "title": lines[0][:100] if lines else "",
-            "word_count": len(text),
-            "char_count": len(text.replace(" ", "")),
-        }
-
-        return {
-            "success": True,
-            "format": "text",
-            "text": text,
-            "structure": structure,
-            "metadata": {},
-        }
-    except Exception as e:
-        logger.error(f"读取文本文件失败: {e}")
-        return {
-            "success": False,
-            "error": f"读取文本文件失败: {str(e)}"
-        }
-
-
+# ---------------------------------------------------------------------------
+# @tool 函数（Agent 可调用的工具）
+# ---------------------------------------------------------------------------
 @tool
-def detect_paper_type(text: str, user_specified: Optional[str] = None) -> str:
-    """
-    识别论文类型。
-
-    自动推断或使用用户指定的论文类型。
-
-    Args:
-        text: 论文文本
-        user_specified: 用户指定的论文类型
-
-    Returns:
-        论文类型: bachelor, master, phd, journal, course, unknown
-    """
-    if user_specified:
-        return user_specified
-
-    # 自动推断
-    text_lower = text.lower()
-
-    # 关键词检测
-    indicators = {
-        "phd": ["博士学位论文", "博士论文", "phd thesis", "doctoral dissertation"],
-        "master": ["硕士学位论文", "硕士论文", "master thesis", "master's dissertation"],
-        "journal": ["发表于", "载《", "期刊", "核心期刊", "cssci", "期刊投稿"],
-        "course": ["课程论文", "期末论文", "学年论文"],
-        "bachelor": ["本科毕业论文", "学士学位论文", "本科论文"],
-    }
-
-    for paper_type, keywords in indicators.items():
-        for keyword in keywords:
-            if keyword in text_lower:
-                return paper_type
-
-    return "unknown"
-
-
-@tool
-def detect_citation_style(
-    text: str,
-    user_specified: Optional[str] = None
-) -> str:
-    """
-    识别引注格式。
-
-    Args:
-        text: 论文文本
-        user_specified: 用户指定的引注格式
-
-    Returns:
-        引注格式: gbt7714, legal_citation, school_template, unknown
-    """
-    if user_specified:
-        return user_specified
-
-    text_lower = text.lower()
-
-    # 检测GB/T 7714特征
-    if re.search(r'\[\d+\]', text) and re.search(r'\d{4}\s*出版社', text):
-        return "gbt7714"
-
-    # 检测法学引注手册特征
-    if re.search(r'脚注|尾注', text_lower) and not re.search(r'\[\d+\]', text):
-        return "legal_citation"
-
-    # 检测混合
-    if re.search(r'\[\d+\]', text) and not re.search(r'\d{4}\s*出版社', text):
-        return "legal_citation"  # 可能是法学引注但用了序号
-
-    return "unknown"
-
-
-@tool
-def review_thesis(
-    text: str,
-    paper_type: str = "unknown",
-    focus_areas: Optional[List[str]] = None
-) -> Dict[str, Any]:
-    """
-    法学论文九大维度深度审查。
-
-    严格审查论文内容，发现问题并给出证据。
-
-    Args:
-        text: 论文文本
-        paper_type: 论文类型
-        focus_areas: 重点审查领域
-
-    Returns:
-        九维度审查结果
-    """
-    logger.info(f"执行法学论文审查，类型: {paper_type}")
-
-    reviewer = ThesisReviewer(paper_type=paper_type)
-    result = reviewer.review(text, focus_areas=focus_areas)
-
-    return result
-
-
-@tool
-def check_citations(
-    text: str,
-    citation_style: str = "unknown",
-    reference_section: Optional[str] = None
-) -> Dict[str, Any]:
-    """
-    引注格式专项检查。
-
-    支持 GB/T 7714 和《法学引注手册》两种标准。
-
-    Args:
-        text: 论文文本
-        citation_style: 引注格式
-        reference_section: 参考文献章节（可选）
-
-    Returns:
-        引注检查结果
-    """
-    logger.info(f"执行引注格式检查，格式: {citation_style}")
-
-    checker = CitationChecker(citation_style=citation_style)
-    result = checker.check(text, reference_section=reference_section)
-
-    return result
-
-
-@tool
-def crossref_citations(text: str) -> Dict[str, Any]:
-    """
-    脚注、正文、参考文献交叉对比。
-
-    检查引用的一致性和完整性。
-
-    Args:
-        text: 论文文本
-
-    Returns:
-        交叉对比结果
-    """
-    logger.info("执行引用交叉对比")
-
-    # 使用引用交叉对比脚本
-    try:
-        from tools.scripts.citation_crossref import CitationCrossReferencer
-
-        analyzer = CitationCrossReferencer(text)
-        result = analyzer.run_analysis()
-
-        return {
-            "success": True,
-            "summary": result["summary"],
-            "issues": result["issues"],
-            "citations": result["citations"],
-        }
-    except Exception as e:
-        logger.error(f"引用交叉对比失败: {e}")
-        return {
-            "success": False,
-            "error": str(e),
-            "issues": [],
-        }
-
-
-@tool
-def verify_facts_online(
-    items: List[Dict[str, str]]
-) -> Dict[str, Any]:
-    """
-    联网核实事实性内容。
-
-    核实法律条文、案例信息、统计数据等。
-
-    Args:
-        items: 待核实项列表，每项包含 type, text, claim
-
-    Returns:
-        核实结果
-    """
-    logger.info(f"联网核实 {len(items)} 个项目")
-
-    verifier = WebVerifier()
-    results = []
-
-    for item in items:
-        result = verifier.verify(
-            item.get("type", "general"),
-            item.get("text", ""),
-            item.get("claim", "")
-        )
-        results.append(result)
-
-    # 分类汇总
-    verified = [r for r in results if r.get("status") == "verified"]
-    contradicted = [r for r in results if r.get("status") == "contradicted"]
-    uncertain = [r for r in results if r.get("status") == "uncertain"]
-
-    return {
+def read_paper_file(file_path: str) -> str:
+    """读取论文文件内容。file_path 可以是本地路径、公网 URL 或 Coze 平台 file_id。"""
+    result = _read_text(file_path)
+    if not result["success"]:
+        return json.dumps(result, ensure_ascii=False)
+    preview = result["text"][:3000]
+    return json.dumps({
         "success": True,
-        "total": len(items),
-        "verified": verified,
-        "contradicted": contradicted,
-        "uncertain": uncertain,
-        "summary": {
-            "verified_count": len(verified),
-            "contradicted_count": len(contradicted),
-            "uncertain_count": len(uncertain),
-        }
-    }
+        "format": result.get("format"),
+        "file_name": result.get("file_name"),
+        "total_chars": len(result["text"]),
+        "text_preview": preview,
+        "full_text_available": True
+    }, ensure_ascii=False, indent=2)
 
 
 @tool
-def generate_annotated_docx(
-    input_path: str,
-    issues: List[Dict[str, Any]],
-    output_path: Optional[str] = None
-) -> Dict[str, Any]:
+def generate_issues_json(analysis_result: str) -> str:
+    """根据审查分析结果，生成符合统一 issues-schema 的 JSON。
+    analysis_result: 模型审查分析的 Markdown 文本。
     """
-    生成带批注的 Word 文档。
-
-    Args:
-        input_path: 原始Word文件路径
-        issues: 问题列表
-        output_path: 输出路径（可选）
-
-    Returns:
-        结果信息
-    """
-    logger.info(f"生成带批注的Word文档: {input_path}")
-
-    if not output_path:
-        input_p = Path(input_path)
-        output_path = str(input_p.parent / f"{input_p.stem}.annotated.docx")
-
-    try:
-        from tools.scripts.inject_docx_comments import DOCXCommentInjector
-
-        injector = DOCXCommentInjector(input_path, output_path)
-
-        if not injector.load():
-            return {
-                "success": False,
-                "error": "无法加载文档"
+    issues = []
+    lines = analysis_result.strip().split("\n")
+    current_issue = None
+    for line in lines:
+        line = line.strip()
+        if not line:
+            if current_issue:
+                issues.append(current_issue)
+                current_issue = None
+            continue
+        # 匹配 "1. [严重][选题] 选题过大" 格式
+        if line[0].isdigit() and "." in line[:5]:
+            if current_issue:
+                issues.append(current_issue)
+            parts = line.split("]", 2)
+            severity = "建议"
+            dimension = "其他"
+            description = line
+            if len(parts) >= 2:
+                sev_part = parts[0]
+                if "致命" in sev_part:
+                    severity = "致命"
+                elif "严重" in sev_part or "重大" in sev_part:
+                    severity = "严重"
+                elif "中等" in sev_part or "一般" in sev_part:
+                    severity = "中等"
+                dim_part = parts[1] if len(parts) > 1 else ""
+                if "[" in dim_part:
+                    dimension = dim_part.split("[")[-1].split("]")[0] if "[" in dim_part else "其他"
+                description = parts[-1].strip() if len(parts) > 2 else line
+            current_issue = {
+                "id": f"ISS-{len(issues) + 1:03d}",
+                "severity": severity,
+                "dimension": dimension,
+                "description": description,
+                "evidence": "",
+                "suggestion": "",
+                "anchor_text": "",
             }
-
-        success, failed, failed_list = injector.add_comments_from_issues(issues)
-        injector.save()
-
-        return {
-            "success": True,
-            "output_path": output_path,
-            "annotations_added": success,
-            "annotations_failed": failed,
-            "failed_list": failed_list,
-        }
-    except Exception as e:
-        logger.error(f"生成批注文档失败: {e}")
-        return {
-            "success": False,
-            "error": str(e)
-        }
+        elif current_issue:
+            if line.startswith("证据：") or line.startswith("依据："):
+                current_issue["evidence"] = line[3:].strip()
+            elif line.startswith("建议：") or line.startswith("修改："):
+                current_issue["suggestion"] = line[3:].strip()
+            else:
+                current_issue["description"] += " " + line
+    if current_issue:
+        issues.append(current_issue)
+    return json.dumps({"issues": issues}, ensure_ascii=False, indent=2)
 
 
 @tool
-def generate_annotated_pdf(
-    input_path: str,
-    issues: List[Dict[str, Any]],
-    output_path: Optional[str] = None
-) -> Dict[str, Any]:
-    """
-    生成带批注的 PDF 文档（嵌入式高亮）。
-
-    Args:
-        input_path: 原始PDF文件路径
-        issues: 问题列表
-        output_path: 输出路径（可选）
-
-    Returns:
-        结果信息
-    """
-    logger.info(f"生成带批注的PDF文档: {input_path}")
-
-    if not output_path:
-        input_p = Path(input_path)
-        output_path = str(input_p.parent / f"{input_p.stem}.annotated.pdf")
-
+def verify_fact(query: str) -> str:
+    """联网核实事实性内容。query 可以是法律名称、法条、案例、统计数据等。"""
     try:
-        from tools.scripts.annotate_pdf import PDFAnnotator
-
-        with PDFAnnotator(input_path, output_path) as annotator:
-            if not annotator.load():
-                return {
-                    "success": False,
-                    "error": "无法加载PDF"
-                }
-
-            success, failed, failed_list = annotator.add_annotations_from_issues(issues)
-
-        result = annotator.get_result()
-        return result.to_dict()
-
+        import coze_coding_dev_sdk as ccds  # type: ignore[import]
+        client = ccds.SearchClient()  # type: ignore[attr-defined]
+        results = client.web_search(query, top_n=5)
+        snippets = []
+        for r in results.get("results", []):
+            snippets.append(f"- [{r.get('title', '')}]({r.get('url', '')}): {r.get('snippet', '')[:200]}")
+        return json.dumps({
+            "query": query,
+            "verified": len(snippets) > 0,
+            "sources": snippets[:3],
+            "note": "联网核实仅供参考，请以权威来源为准。"
+        }, ensure_ascii=False, indent=2)
     except Exception as e:
-        logger.error(f"生成PDF批注失败: {e}")
-        return {
-            "success": False,
-            "error": str(e)
-        }
+        return json.dumps({"query": query, "verified": False, "error": str(e), "sources": []}, ensure_ascii=False)
 
 
 @tool
-def generate_markdown_report(
-    paper_analysis: Dict,
-    review_result: Dict,
-    citation_result: Dict,
-    crossref_result: Dict,
-    verification_result: Dict,
-    issues: List[Dict],
-    paper_type: str = "unknown",
-    citation_style: str = "unknown"
-) -> str:
-    """
-    生成完整 Markdown 审查报告。
-
-    Args:
-        paper_analysis: 论文分析结果
-        review_result: 九维度审查结果
-        citation_result: 引注检查结果
-        crossref_result: 交叉对比结果
-        verification_result: 联网核实结果
-        issues: 问题清单
-        paper_type: 论文类型
-        citation_style: 引注格式
-
-    Returns:
-        Markdown格式报告
-    """
-    logger.info("生成Markdown审查报告")
-
-    generator = MarkdownReportGenerator(
-        paper_type=paper_type,
-        citation_style=citation_style
-    )
-
-    report = generator.generate(
-        paper_analysis=paper_analysis,
-        review_result=review_result,
-        citation_result=citation_result,
-        crossref_result=crossref_result,
-        verification_result=verification_result,
-        issues=issues,
-    )
-
-    return report
-
-
-@tool
-def upload_to_storage(local_path: str) -> str:
-    """
-    上传文件到对象存储。
-
-    Args:
-        local_path: 本地文件路径
-
-    Returns:
-        可下载的URL
-    """
-    logger.info(f"上传文件到存储: {local_path}")
-
+def generate_annotated_docx(docx_path: str, issues_json: str) -> str:
+    """生成带批注的 .annotated.docx。docx_path 为原始 docx 路径，issues_json 为问题清单 JSON 字符串。"""
     try:
-        # 延迟导入避免LSP报错
-        import importlib
-        sdk = importlib.import_module("coze_coding_dev_sdk")
-        StorageClient = getattr(sdk, "StorageClient", None)
-        if StorageClient is None:
-            raise ImportError("StorageClient not found")
-        client = StorageClient()
-        url = client.upload_file(local_path)
-        return url
+        import subprocess
+        inject_script = _utr_tool_path("inject-docx-comments.py")
+        if not os.path.exists(inject_script):
+            return json.dumps({"success": False, "error": f"批注注入脚本不存在: {inject_script}"})
+        if not os.path.exists(docx_path):
+            return json.dumps({"success": False, "error": f"原始 docx 文件不存在: {docx_path}"})
+        issues_raw = json.loads(issues_json) if isinstance(issues_json, str) else issues_json
+        # 确保 issues_data 是 {"schema_version": "1.0", "issues": [...]} 格式
+        if isinstance(issues_raw, list):
+            issues_data = {"schema_version": "1.0", "issues": issues_raw}
+        elif isinstance(issues_raw, dict) and "issues" in issues_raw:
+            issues_data = issues_raw
+        else:
+            issues_data = {"schema_version": "1.0", "issues": []}
+        temp_issues = tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False, encoding="utf-8")
+        json.dump(issues_data, temp_issues, ensure_ascii=False, indent=2)
+        temp_issues.close()
+        out_path = docx_path.replace(".docx", ".annotated.docx")
+        proc = subprocess.run(
+            [sys.executable, inject_script, docx_path, temp_issues.name, out_path],
+            capture_output=True, text=True, timeout=180
+        )
+        os.unlink(temp_issues.name)
+        if proc.returncode == 0:
+            return json.dumps({"success": True, "annotated_docx_path": out_path, "output": proc.stdout}, ensure_ascii=False)
+        else:
+            return json.dumps({"success": False, "error": proc.stderr or "批注注入失败", "stdout": proc.stdout}, ensure_ascii=False)
     except Exception as e:
-        logger.warning(f"上传服务不可用: {e}，返回本地路径")
-        return f"file://{local_path}"
+        return json.dumps({"success": False, "error": str(e), "traceback": traceback.format_exc()}, ensure_ascii=False)
 
 
-# ============================================================================
+@tool
+def generate_markdown_report(analysis_result: str, issues_json: str) -> str:
+    """生成完整 Markdown 审查报告。"""
+    try:
+        from coze_coding_dev_sdk import DocumentGenerationClient
+        report_md = f"""# 法学论文质检审查报告
+
+## 一、审查概况
+
+{analysis_result}
+
+## 二、问题清单
+
+```json
+{issues_json}
+```
+
+## 三、说明
+
+- 本报告由法学论文质检自查智能体自动生成
+- 审查结果仅供参考，请以导师/评阅人意见为准
+- 致命/严重问题建议优先处理
+- 如有疑问，请与导师沟通确认
+"""
+        client = DocumentGenerationClient()
+        pdf_url = client.create_pdf_from_markdown(report_md, "review_report")
+        return json.dumps({"success": True, "pdf_url": pdf_url, "markdown": report_md}, ensure_ascii=False)
+    except Exception as e:
+        return json.dumps({"success": False, "error": str(e), "markdown": analysis_result}, ensure_ascii=False)
+
+
+# ---------------------------------------------------------------------------
+# 错误处理中间件
+# ---------------------------------------------------------------------------
+@wrap_tool_call
+def handle_tool_errors(request, handler):
+    try:
+        return handler(request)
+    except Exception as e:
+        return ToolMessage(
+            content=f"工具执行错误: {str(e)}",
+            tool_call_id=request.tool_call["id"]
+        )
+
+
+# ---------------------------------------------------------------------------
 # Agent 构建
-# ============================================================================
-
+# ---------------------------------------------------------------------------
 def build_agent(ctx=None):
-    """构建法学论文质检Agent"""
-
-    # 加载配置
     workspace_path = os.getenv("COZE_WORKSPACE_PATH", "/workspace/projects")
     config_path = os.path.join(workspace_path, LLM_CONFIG)
-
-    with open(config_path, 'r', encoding='utf-8') as f:
+    with open(config_path, "r", encoding="utf-8") as f:
         cfg = json.load(f)
 
-    # 初始化LLM
     api_key = os.getenv("COZE_WORKLOAD_IDENTITY_API_KEY")
     base_url = os.getenv("COZE_INTEGRATION_MODEL_BASE_URL")
 
     llm = ChatOpenAI(
-        model=cfg['config'].get("model"),
+        model=cfg["config"]["model"],
         api_key=api_key,
         base_url=base_url,
-        temperature=cfg['config'].get('temperature', 0.3),
+        temperature=cfg["config"]["temperature"],
         streaming=True,
-        timeout=cfg['config'].get('timeout', 600),
-        extra_body={
-            "thinking": {
-                "type": cfg['config'].get('thinking', 'enabled')
-            }
-        },
-        default_headers={}  # 如果需要传递headers，在此配置
+        timeout=cfg["config"]["timeout"],
+        extra_body={"thinking": {"type": cfg["config"]["thinking"]}},
+        default_headers=default_headers(ctx) if ctx else {}
     )
 
-    # 工具列表
     tools = [
-        welcome_and_guide,
         read_paper_file,
-        detect_paper_type,
-        detect_citation_style,
-        review_thesis,
-        check_citations,
-        crossref_citations,
-        verify_facts_online,
+        generate_issues_json,
+        verify_fact,
         generate_annotated_docx,
-        generate_annotated_pdf,
         generate_markdown_report,
-        upload_to_storage,
     ]
 
-    # 创建Agent（不指定state_schema，使用默认AgentState）
-    agent = create_agent(
+    return create_agent(
         model=llm,
-        system_prompt=cfg.get("sp"),
+        system_prompt=cfg.get("sp", "You are a helpful assistant."),
         tools=tools,
-        checkpointer=None,  # 可选：启用记忆
+        middleware=[handle_tool_errors],
+        checkpointer=get_memory_saver(),
     )
-
-    return agent
-
-
-# ============================================================================
-# 主入口
-# ============================================================================
-
-if __name__ == "__main__":
-    agent = build_agent()
-    print("法学论文质检Agent已构建")
-    print("使用 agent.invoke() 调用")
