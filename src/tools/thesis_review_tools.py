@@ -595,3 +595,378 @@ def parse_review_response(response: str) -> Dict[str, Any]:
     # 实际使用时由LLM生成结构化JSON更好
     
     return result
+
+
+# ============================================================================
+# 论文分析类
+# ============================================================================
+
+class PaperAnalysis:
+    """论文分析器"""
+
+    def __init__(self, text: str = ""):
+        self.text = text
+        self.structure = {}
+        self.footnotes = []
+        self.references = []
+        self.legal_citations = []
+        self.case_citations = []
+
+    def analyze(self) -> Dict[str, Any]:
+        """执行完整分析"""
+        self._analyze_structure()
+        self._extract_footnotes()
+        self._extract_references()
+        self._extract_citations()
+
+        return {
+            "text": self.text,
+            "structure": self.structure,
+            "footnotes": self.footnotes,
+            "references": self.references,
+            "legal_citations": self.legal_citations,
+            "case_citations": self.case_citations,
+        }
+
+    def _analyze_structure(self):
+        """分析论文结构"""
+        lines = self.text.split('\n')
+        self.structure = {
+            "title": lines[0][:100] if lines else "",
+            "word_count": len(self.text),
+            "line_count": len(lines),
+        }
+
+        # 检测章节
+        chapters = []
+        for i, line in enumerate(lines):
+            if re.match(r'^第[一二三四五六七八九十百\d]+[章节部篇]', line.strip()):
+                chapters.append({
+                    "title": line.strip()[:50],
+                    "line": i
+                })
+        self.structure["chapters"] = chapters
+
+    def _extract_footnotes(self):
+        """提取脚注"""
+        pattern = r'\[(\d+)\]\s*([^\[\]]+)'
+        for match in re.finditer(pattern, self.text):
+            self.footnotes.append({
+                "num": int(match.group(1)),
+                "text": match.group(2)[:200]
+            })
+
+    def _extract_references(self):
+        """提取参考文献"""
+        ref_section = re.search(
+            r'(?:参考文献|References)[：:\s]*\n(.*?)(?=\n\n|\Z)',
+            self.text,
+            re.DOTALL | re.IGNORECASE
+        )
+        if ref_section:
+            ref_text = ref_section.group(1)
+            lines = ref_text.split('\n')
+            for line in lines:
+                line = line.strip()
+                if line:
+                    self.references.append({"text": line[:300]})
+
+    def _extract_citations(self):
+        """提取法律和案例引用"""
+        # 法律引用
+        law_pattern = r'《([^《》]+)》第(\d+)条'
+        for match in re.finditer(law_pattern, self.text):
+            self.legal_citations.append({
+                "law": match.group(1),
+                "article": match.group(2)
+            })
+
+        # 案例引用
+        case_pattern = r'([^\s]+)案(?:第?\s*(\d+)\s*号)?'
+        for match in re.finditer(case_pattern, self.text):
+            self.case_citations.append({
+                "name": match.group(1),
+                "case_num": match.group(2) or ""
+            })
+
+
+# ============================================================================
+# 论文审查类
+# ============================================================================
+
+class ThesisReviewer:
+    """法学论文审查器"""
+
+    DIMENSIONS = [
+        "topic_quality",       # 选题质量
+        "structure",           # 结构逻辑
+        "argumentation",        # 论证严谨性
+        "literature_review",    # 文献综述
+        "empirical_analysis",  # 实证分析
+        "norm_application",     # 规范适用
+        "language",             # 语言表达
+        "recommendations",      # 对策建议
+        "academic_integrity",   # 学术规范
+    ]
+
+    def __init__(self, paper_type: str = "unknown"):
+        self.paper_type = paper_type
+        self.results = {}
+
+    def review(
+        self,
+        text: str,
+        focus_areas: Optional[List[str]] = None
+    ) -> Dict[str, Any]:
+        """
+        执行论文审查
+
+        Args:
+            text: 论文文本
+            focus_areas: 重点审查领域
+
+        Returns:
+            审查结果
+        """
+        dimensions = focus_areas or self.DIMENSIONS
+
+        # 简化实现：返回审查框架
+        # 实际使用时调用LLM进行审查
+        return {
+            "success": True,
+            "paper_type": self.paper_type,
+            "dimensions": dimensions,
+            "status": "ready_for_review",
+            "message": "论文已准备好接受审查，请调用LLM进行深度审查"
+        }
+
+
+# ============================================================================
+# 引注检查类
+# ============================================================================
+
+class CitationChecker:
+    """引注格式检查器"""
+
+    def __init__(self, citation_style: str = "unknown"):
+        self.citation_style = citation_style
+        self.issues = []
+
+    def check(
+        self,
+        text: str,
+        reference_section: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        执行引注格式检查
+
+        Args:
+            text: 论文文本
+            reference_section: 参考文献章节
+
+        Returns:
+            检查结果
+        """
+        return {
+            "success": True,
+            "citation_style": self.citation_style,
+            "issues": [],
+            "status": "ready_for_check",
+            "message": "论文已准备好接受引注检查"
+        }
+
+
+# ============================================================================
+# 联网核实类
+# ============================================================================
+
+class WebVerifier:
+    """联网核实器"""
+
+    def __init__(self):
+        self.client = None
+
+    def _get_client(self):
+        """获取WebSearch客户端"""
+        if self.client is None:
+            try:
+                import importlib
+                sdk = importlib.import_module("coze_coding_dev_sdk")
+                WebSearchClient = getattr(sdk, "WebSearchClient", None)
+                if WebSearchClient is None:
+                    raise ImportError("WebSearchClient not found")
+                self.client = WebSearchClient()
+            except Exception:
+                logger.warning("WebSearchClient不可用")
+                return None
+        return self.client
+
+    def verify(
+        self,
+        item_type: str,
+        text: str,
+        claim: str
+    ) -> Dict[str, Any]:
+        """
+        核实单条内容
+
+        Args:
+            item_type: 内容类型（law/case/statistics/person/org）
+            text: 相关文本
+            claim: 待核实声明
+
+        Returns:
+            核实结果
+        """
+        client = self._get_client()
+        if not client:
+            return {
+                "status": "unknown",
+                "message": "联网核实服务不可用"
+            }
+
+        # 简化实现
+        return {
+            "status": "ready",
+            "type": item_type,
+            "text": text,
+            "claim": claim
+        }
+
+
+# ============================================================================
+# 批注生成器
+# ============================================================================
+
+class AnnotationGenerator:
+    """批注生成器"""
+
+    def __init__(self):
+        self.annotations = []
+
+    def generate(
+        self,
+        review_result: Dict[str, Any],
+        issues: List[Dict]
+    ) -> List[Dict]:
+        """
+        生成批注列表
+
+        Args:
+            review_result: 审查结果
+            issues: 问题列表
+
+        Returns:
+            批注列表
+        """
+        return [
+            {
+                "severity": issue.get("severity", "minor"),
+                "type": issue.get("type", "general"),
+                "description": issue.get("description", ""),
+                "location": issue.get("location", ""),
+                "suggestion": issue.get("suggestion", ""),
+                "highlight_text": issue.get("highlight_text", ""),
+                "evidence": issue.get("evidence", "")
+            }
+            for issue in issues
+        ]
+
+
+# ============================================================================
+# Markdown报告生成器
+# ============================================================================
+
+class MarkdownReportGenerator:
+    """Markdown报告生成器"""
+
+    def __init__(
+        self,
+        paper_type: str = "unknown",
+        citation_style: str = "unknown"
+    ):
+        self.paper_type = paper_type
+        self.citation_style = citation_style
+
+    def generate(
+        self,
+        paper_analysis: Dict[str, Any],
+        review_result: Dict[str, Any],
+        citation_result: Dict[str, Any],
+        crossref_result: Dict[str, Any],
+        verification_result: Dict[str, Any],
+        issues: List[Dict]
+    ) -> str:
+        """
+        生成Markdown报告
+
+        Args:
+            paper_analysis: 论文分析结果
+            review_result: 审查结果
+            citation_result: 引注检查结果
+            crossref_result: 交叉引用结果
+            verification_result: 联网核实结果
+            issues: 问题清单
+
+        Returns:
+            Markdown报告内容
+        """
+        from datetime import datetime
+
+        # 构建报告
+        report = f"""# 法学论文质检审查报告
+
+> 审查时间：{datetime.now().strftime('%Y年%m月%d日 %H:%M')}
+> 论文类型：{self.paper_type}
+> 引注方案：{self.citation_style}
+
+---
+
+## 一、论文基本信息
+
+| 项目 | 内容 |
+|------|------|
+| 标题 | {paper_analysis.get('structure', {}).get('title', '未知')} |
+| 字数 | {paper_analysis.get('structure', {}).get('word_count', '未知')} |
+| 章节数 | {len(paper_analysis.get('structure', {}).get('chapters', []))} |
+
+---
+
+## 二、问题摘要
+
+共发现 **{len(issues)}** 个问题，其中：
+- 致命问题：{sum(1 for i in issues if i.get('severity') == 'fatal')}
+- 重大问题：{sum(1 for i in issues if i.get('severity') == 'major')}
+- 一般问题：{sum(1 for i in issues if i.get('severity') == 'minor')}
+- 提示信息：{sum(1 for i in issues if i.get('severity') == 'info')}
+
+---
+
+## 三、优先修改清单（Top 10）
+
+"""
+
+        # 添加Top10问题
+        for i, issue in enumerate(issues[:10], 1):
+            severity = issue.get("severity", "minor")
+            icon = {"fatal": "🔴", "major": "🟠", "minor": "🟡", "info": "🔵"}.get(severity, "⚪")
+            report += f"{i}. {icon} **[{severity.upper()}]** {issue.get('description', '')}\n"
+            report += f"   - 位置：{issue.get('location', '未知')}\n"
+            report += f"   - 建议：{issue.get('suggestion', '')}\n\n"
+
+        report += """---
+
+## 四、完整问题清单
+
+详见附件 issues.json
+
+---
+
+## 五、声明
+
+本报告仅供参考，不代表最终评审意见。
+
+**隐私声明**：本报告不公开论文内容，仅供内部使用。
+"""
+
+        return report
