@@ -1,0 +1,82 @@
+{
+  "schema_version": "1.0",
+  "issues": [
+    {
+      "id": "thesis-structure-001",
+      "source": "thesis",
+      "category": "structure",
+      "severity": "major",
+      "scope": "chapter",
+      "locator": {
+        "chapter": "正文",
+        "paragraph_index": 0
+      },
+      "excerpt": "",
+      "anchor_text": "引言1500字占比18.75%过高",
+      "problem": "引言1500字占比18.75%过高",
+      "suggestion": [
+        "请根据具体上下文补充修改建议"
+      ],
+      "group_id": "g-001"
+    },
+    {
+      "id": "thesis-argumentation-002",
+      "source": "thesis",
+      "category": "argumentation",
+      "severity": "major",
+      "scope": "paragraph",
+      "locator": {
+        "chapter": "正文",
+        "paragraph_index": 0
+      },
+      "excerpt": "法条引用与原文存在偏差",
+      "anchor_text": "法条引用与原文存在偏差",
+      "problem": "法条引用与原文存在偏差",
+      "suggestion": [
+        "请根据具体上下文补充修改建议"
+      ],
+      "group_id": "g-002"
+    },
+    {
+      "id": "citation-citation-format-003",
+      "source": "citation",
+      "category": "citation-format",
+      "severity": "minor",
+      "scope": "sentence",
+      "locator": {
+        "chapter": "正文",
+        "paragraph_index": 0
+      },
+      "excerpt": "脚注序号跳号",
+      "anchor_text": "脚注序号跳号",
+      "problem": "脚注序号跳号",
+      "suggestion": [
+        "请根据具体上下文补充修改建议"
+      ],
+      "group_id": "g-003"
+    },
+    {
+      "id": "citation-citation-missing-info-004",
+      "source": "citation",
+      "category": "citation-missing-info",
+      "severity": "minor",
+      "scope": "sentence",
+      "locator": {
+        "chapter": "正文",
+        "paragraph_index": 0
+      },
+      "excerpt": "缺少出版地",
+      "anchor_text": "缺少出版地",
+      "problem": "缺少出版地",
+      "suggestion": [
+        "请根据具体上下文补充修改建议"
+      ],
+      "group_id": "g-004"
+    }
+  ],
+  "quality_gate": {
+    "total_issues": 4,
+    "substantive_issues": 2,
+    "quality_gate_passed": false
+  }
+}
