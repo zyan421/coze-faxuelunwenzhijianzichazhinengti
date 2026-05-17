@@ -50,6 +50,44 @@ def _utr_tool_path(name: str) -> str:
     return os.path.join(UTR_BUNDLE, "unified-thesis-reviewer", "tools", name)
 
 
+def _resolve_local_docx_path(file_path: str) -> str:
+    """将 URL / file_id / 本地路径统一解析为本地 .docx 二进制文件路径。
+    
+    - URL → 下载到 /tmp 并返回本地路径
+    - file_id (file_xxx) → 通过 coze_coding_utils 解析
+    - 本地路径 → 直接返回
+    """
+    path = file_path.strip()
+    
+    # URL → 下载二进制文件到 /tmp
+    if path.startswith("http://") or path.startswith("https://"):
+        import requests
+        resp = requests.get(path, timeout=60)
+        if resp.status_code != 200:
+            raise FileNotFoundError(f"URL 下载失败，状态码 {resp.status_code}: {path}")
+        fname = path.split("/")[-1].split("?")[0] or "downloaded.docx"
+        if not fname.endswith(".docx"):
+            fname += ".docx"
+        tmp_path = os.path.join("/tmp", f"utr_{int(__import__('time').time())}_{fname}")
+        with open(tmp_path, "wb") as f:
+            f.write(resp.content)
+        return tmp_path
+    
+    # Coze file_id → 解析为本地路径
+    if path.startswith("file_") and not os.path.exists(path):
+        try:
+            import coze_coding_utils.file as cf_mod
+            coze_file = getattr(cf_mod, "file", cf_mod)
+            # type: ignore — LSP 无法推断 get_file 动态属性，运行时存在
+            resolved = coze_file.get_file(path).file_path  # type: ignore[union-attr]
+            return resolved
+        except Exception:
+            pass
+    
+    # 本地路径直接返回
+    return path
+
+
 # ---------------------------------------------------------------------------
 # 底层读取函数
 # ---------------------------------------------------------------------------
@@ -173,6 +211,15 @@ def _read_text(file_path: str) -> dict:
 @tool
 def read_paper_file(file_path: str) -> str:
     """读取论文文件内容。file_path 可以是本地路径、公网 URL 或 Coze 平台 file_id。"""
+    # 先尝试解析本地路径（供后续 generate_annotated_docx 使用）
+    local_docx_path = ""
+    try:
+        resolved = _resolve_local_docx_path(file_path)
+        if resolved and os.path.exists(resolved):
+            local_docx_path = resolved
+    except Exception:
+        pass
+    
     result = _read_text(file_path)
     if not result["success"]:
         return json.dumps(result, ensure_ascii=False)
@@ -180,11 +227,13 @@ def read_paper_file(file_path: str) -> str:
     # 预览取前 5000 字符（足够预览又不会过大）
     preview = paper_text[:5000]
     # 注意：full_paper_text 放在 text_preview 之前（避免 Agent 输出截断导致丢失）
+    # local_docx_path 供 generate_annotated_docx 使用，避免 URL 路径无法访问
     return json.dumps({
         "success": True,
         "format": result.get("format"),
         "file_name": result.get("file_name"),
         "total_chars": len(paper_text),
+        "local_docx_path": local_docx_path,
         "full_paper_text": paper_text,
         "text_preview": preview,
         "full_text_available": True
@@ -465,7 +514,7 @@ def verify_fact(query: str) -> str:
 def generate_annotated_docx(docx_path: str, issues_json: str) -> str:
     """
     生成带批注的 .annotated.docx。
-    docx_path 为原始 docx 路径，issues_json 为严格 UTR schema 的问题清单 JSON 字符串。
+    docx_path 为原始 docx 路径（支持本地路径、URL、Coze file_id），issues_json 为严格 UTR schema 的问题清单 JSON 字符串。
     注入前先校验 schema，成功后回读校验。
     """
     try:
@@ -481,15 +530,32 @@ def generate_annotated_docx(docx_path: str, issues_json: str) -> str:
                 "stderr": None
             }, ensure_ascii=False)
 
-        if not os.path.exists(docx_path):
+        # 统一解析路径：URL / file_id / 本地路径 → 本地 .docx 文件
+        try:
+            resolved_path = _resolve_local_docx_path(docx_path)
+        except FileNotFoundError as fe:
             return json.dumps({
                 "success": False,
-                "error": f"原始 docx 文件不存在: {docx_path}",
+                "error": f"原始 docx 文件无法获取: {str(fe)}",
+                "hint": "如果是 URL，请确认链接可公开访问；如果是 file_id，请确认文件已上传成功",
                 "failed_function": "generate_annotated_docx",
                 "failed_issue_id": None,
                 "traceback": None,
                 "stderr": None
             }, ensure_ascii=False)
+
+        if not os.path.exists(resolved_path):
+            return json.dumps({
+                "success": False,
+                "error": f"原始 docx 文件不存在，已尝试解析为: {resolved_path}，原始输入: {docx_path}",
+                "hint": "请确认文件路径正确，或使用 read_paper_file 中的 local_docx_path 字段",
+                "failed_function": "generate_annotated_docx",
+                "failed_issue_id": None,
+                "traceback": None,
+                "stderr": None
+            }, ensure_ascii=False)
+
+        docx_path = resolved_path
 
         # 解析并校验 issues_json
         issues_raw = json.loads(issues_json) if isinstance(issues_json, str) else issues_json
@@ -672,78 +738,113 @@ def generate_annotated_docx(docx_path: str, issues_json: str) -> str:
 
 @tool
 def generate_markdown_report(analysis_result: str = "") -> str:
-    """生成完整 Markdown 审查报告。
+    """生成完整 Markdown 审查报告（PDF 格式）。
     
-    若 analysis_result 为空，则自动从上次批注生成时保存的 issues.json 读取。
-    issues.json 由 normalize_issues_for_annotation 在上一次调用时自动保存到固定路径。
+    若 analysis_result 为空，则使用默认占位文本。
+    问题清单从上次 normalize_issues_for_annotation 保存的 issues.json 自动读取，格式化为易读表格。
     """
     # 尝试读取上次保存的 issues.json
-    issues_json_str = ""
+    issues_data = None
     issues_path = "/tmp/last_issues.json"
     try:
         if os.path.exists(issues_path):
             with open(issues_path, "r", encoding="utf-8") as f:
                 issues_data = json.load(f)
-            issues_json_str = json.dumps(issues_data, ensure_ascii=False)
     except Exception:
         pass
 
-    # 如果调用者传了 issues_json 路径（从 analysis_result 中提取），则读取该文件
-    if not issues_json_str:
-        # 查找最近的 .debug.issues.json 文件
+    # 如果没有 issues.json，查找最近的 debug.issues.json
+    if not issues_data:
         import glob
         candidates = glob.glob("/workspace/projects/**/*.debug.issues.json", recursive=True) + \
-                     glob.glob("/tmp/*.debug.issues.json") + \
-                     glob.glob("/tmp/papers/*.debug.issues.json", recursive=True)
+                     glob.glob("/tmp/*.debug.issues.json")
         if candidates:
             candidates.sort(key=os.path.getmtime, reverse=True)
             try:
                 with open(candidates[0], "r", encoding="utf-8") as f:
                     issues_data = json.load(f)
-                issues_json_str = json.dumps(issues_data, ensure_ascii=False)
             except Exception:
                 pass
 
-    # 如果仍然没有 issues_json，给出清晰提示
-    if not issues_json_str and not analysis_result:
+    # 如果仍然没有 issues 数据
+    if not issues_data and not analysis_result:
         return json.dumps({
             "success": False,
-            "error": "缺少分析文本和 issues_json。请在 analysis_result 中传入审查分析文本，或先运行 normalize_issues_for_annotation 生成 issues.json。",
-            "suggestion": "先调用 normalize_issues_for_annotation(analysis_result, paper_text)，再调用 generate_markdown_report(analysis_result, issues_json)"
+            "error": "缺少分析文本和 issues 数据。请先运行完整审查流程。",
+            "suggestion": "先调用 read_paper_file → 审查分析 → normalize_issues_for_annotation → generate_markdown_report"
         }, ensure_ascii=False)
 
     if not analysis_result:
-        analysis_result = "# 论文质检审查报告\n\n（请查阅完整审查报告）"
+        analysis_result = "（详细审查分析请见上文对话）"
+
+    # 格式化问题清单为易读表格（而非原始 JSON）
+    issues_table = ""
+    if issues_data and "issues" in issues_data:
+        issues_list = issues_data["issues"]
+        # 按严重程度排序：fatal > major > minor
+        sorted_issues = sorted(issues_list, key=lambda x: SEVERITY_ORDER.get(x.get("severity", "minor"), 2))
+        
+        # 统计
+        fatal_count = sum(1 for i in issues_list if i.get("severity") == "fatal")
+        major_count = sum(1 for i in issues_list if i.get("severity") == "major")
+        minor_count = sum(1 for i in issues_list if i.get("severity") == "minor")
+        
+        issues_table = f"| 序号 | 严重程度 | 类别 | 问题描述 | 修改建议 |\n"
+        issues_table += f"|:---:|:---:|:---:|:---|:---|\n"
+        
+        for idx, issue in enumerate(sorted_issues, 1):
+            sev = issue.get("severity", "minor")
+            sev_label = {"fatal": "❌ 致命", "major": "⚠️ 严重", "minor": "💡 轻微"}.get(sev, "💡 轻微")
+            cat = issue.get("category", "unknown")
+            cat_label = {
+                "structure": "结构逻辑", "argumentation": "论证严谨性",
+                "literature-review": "文献综述", "empirical": "实证分析",
+                "legal-norms": "规范适用", "language": "语言表达",
+                "policy": "政策建议", "academic-integrity": "学术诚信",
+                "citation-format": "引注格式", "citation-missing-info": "引注缺失"
+            }.get(cat, cat)
+            problem = issue.get("problem", "").replace("|", "｜").replace("\n", " ")[:150]
+            suggestions = issue.get("suggestion", [])
+            suggestion_text = "；".join(suggestions[:2]).replace("|", "｜").replace("\n", " ")[:150] if suggestions else "请根据上下文修改"
+            
+            issues_table += f"| {idx} | {sev_label} | {cat_label} | {problem} | {suggestion_text} |\n"
+        
+        issues_table += f"\n> **统计**：共 {len(issues_list)} 项问题 — 致命 {fatal_count} 项 / 严重 {major_count} 项 / 轻微 {minor_count} 项\n"
+    else:
+        issues_table = "> 问题清单数据暂不可用，请参考上方审查分析内容。\n"
 
     try:
         from coze_coding_dev_sdk import DocumentGenerationClient
         report_md = f"""# 法学论文质检审查报告
 
-## 一、审查概况
+---
+
+## 审查概况
 
 {analysis_result}
 
-## 二、问题清单
+---
 
-```json
-{issues_json_str}
-```
+## 问题清单
 
-## 三、说明
+{issues_table}
+
+---
+
+## 说明
 
 - 本报告由法学论文质检自查智能体自动生成
 - 审查结果仅供参考，请以导师/评阅人意见为准
-- fatal/major 问题建议优先处理
+- 致命/严重问题建议优先处理
 - 如有疑问，请与导师沟通确认
 """
         client = DocumentGenerationClient()
         pdf_url = client.create_pdf_from_markdown(report_md, "review_report")
-        return json.dumps({"success": True, "pdf_url": pdf_url, "markdown": report_md}, ensure_ascii=False)
+        return json.dumps({"success": True, "pdf_url": pdf_url}, ensure_ascii=False)
     except Exception as e:
         return json.dumps({
             "success": False, "error": str(e),
-            "traceback": traceback.format_exc(),
-            "markdown": f"# 法学论文质检审查报告\n\n## 一、审查概况\n\n{analysis_result}\n\n## 二、问题清单\n\nissues.json 读取失败: {str(e)}\n\n## 三、说明\n\n- 本报告由法学论文质检自查智能体自动生成\n- 审查结果仅供参考，请以导师/评阅人意见为准"
+            "traceback": traceback.format_exc()
         }, ensure_ascii=False)
 
 
