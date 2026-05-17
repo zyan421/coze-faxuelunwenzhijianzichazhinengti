@@ -89,26 +89,54 @@ def _read_text(file_path: str) -> dict:
         if ext == ".docx":
             import subprocess
             extract_script = _utr_tool_path("extract-docx.py")
+            tmp_out = None
             if os.path.exists(extract_script):
-                proc = subprocess.run(
-                    [sys.executable, extract_script, path, "-"],
-                    capture_output=True, text=True, timeout=120
-                )
-                if proc.returncode == 0:
-                    return {"success": True, "text": proc.stdout, "format": "docx",
-                            "file_name": os.path.basename(path)}
-                else:
-                    from docx import Document
-                    doc = Document(path)
-                    paragraphs = [p.text for p in doc.paragraphs]
-                    return {"success": True, "text": "\n".join(paragraphs),
-                            "format": "docx", "file_name": os.path.basename(path)}
-            else:
-                from docx import Document
-                doc = Document(path)
-                paragraphs = [p.text for p in doc.paragraphs]
-                return {"success": True, "text": "\n".join(paragraphs),
-                        "format": "docx", "file_name": os.path.basename(path)}
+                with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", suffix=".txt", delete=False) as tf:
+                    tmp_out = tf.name
+                try:
+                    proc = subprocess.run(
+                        [sys.executable, extract_script, path, tmp_out],
+                        capture_output=True, text=True, timeout=120
+                    )
+                    if proc.returncode == 0 and os.path.exists(tmp_out):
+                        with open(tmp_out, encoding="utf-8") as f:
+                            text = f.read()
+                        os.unlink(tmp_out)
+                        return {"success": True, "text": text, "format": "docx",
+                                "file_name": os.path.basename(path),
+                                "total_chars": len(text),
+                                "text_preview": text[:5000] if text else "",
+                                "full_text_available": True}
+                    # else fall through to python-docx
+                finally:
+                    if tmp_out and os.path.exists(tmp_out):
+                        try:
+                            os.unlink(tmp_out)
+                        except Exception:
+                            pass
+                # Fall through to python-docx fallback
+            from docx import Document
+            doc = Document(path)
+            # 遍历所有 Run，捕获完整段落文本（含样式中的文本）
+            W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+            def full_para_text(p_el):
+                parts = []
+                for child in p_el.iter():
+                    tag = child.tag.split("}", 1)[-1] if "}" in child.tag else child.tag
+                    if tag == "t" and child.text:
+                        parts.append(child.text)
+                    elif tag == "tab":
+                        parts.append("\t")
+                return "".join(parts)
+            body_el = doc.element.body  # type: ignore[attr-defined]
+            paragraphs = [full_para_text(p_el) for p_el in body_el.iter(f"{{{W_NS}}}p")]
+            paragraphs = [p for p in paragraphs if p.strip()]
+            text = "\n".join(paragraphs)
+            return {"success": True, "text": text, "format": "docx",
+                    "file_name": os.path.basename(path),
+                    "total_chars": len(text),
+                    "text_preview": text[:5000] if text else "",
+                    "full_text_available": True}
 
         if ext == ".pdf":
             try:
@@ -148,15 +176,19 @@ def read_paper_file(file_path: str) -> str:
     result = _read_text(file_path)
     if not result["success"]:
         return json.dumps(result, ensure_ascii=False)
-    preview = result["text"][:3000]
+    paper_text = result["text"]
+    # 预览取前 5000 字符（足够预览又不会过大）
+    preview = paper_text[:5000]
+    # 注意：full_paper_text 放在 text_preview 之前（避免 Agent 输出截断导致丢失）
     return json.dumps({
         "success": True,
         "format": result.get("format"),
         "file_name": result.get("file_name"),
-        "total_chars": len(result["text"]),
+        "total_chars": len(paper_text),
+        "full_paper_text": paper_text,
         "text_preview": preview,
         "full_text_available": True
-    }, ensure_ascii=False, indent=2)
+    }, ensure_ascii=False)
 
 
 @tool
@@ -257,24 +289,48 @@ def normalize_issues_for_annotation(analysis_result: str, paper_text: str) -> st
         return "minor"
 
     def _find_anchor(text: str, paper: str) -> str:
-        """在论文文本中寻找可定位的 anchor_text，返回前60码点。"""
-        if not text:
-            return ""
-        # 取 description 中引号内的文本或前30字
-        m = re.search(r'["""]([^"""]+)["""]', text)
-        if m:
-            candidate = m.group(1).strip()
-        else:
-            candidate = text.strip()[:40]
-        # 检查是否在论文中
-        if candidate and candidate in paper:
-            return candidate[:60]
-        # 退回到 paper 中搜索关键词
-        words = [w for w in re.split(r'[\s，。；：]', text) if len(w) >= 4]
-        for w in words[:3]:
-            if w in paper:
+        """在论文文本中寻找可定位的 anchor_text，返回前60码点。
+        
+        策略（按优先级）：
+        1. 引号内原文引用（LLM 在分析中直接引用论文原文）
+        2. 6-50字的中文句子片段
+        3. 4-8字的关键词搜索
+        4. 兜底：描述前40字（inject-docx 仍可定位）
+        """
+        if not paper or not text:
+            return text[:60] if text else ""
+        
+        candidates = []
+        # 1. 引号内原文引用（最高优先级）
+        for m in re.finditer(r'["""](.{4,60}?)["""]', text):
+            candidates.append((len(m.group(1)), m.group(1).strip(), 3))
+        # 2. 中文句子片段
+        for m in re.finditer(r'[\u4e00-\u9fff]{6,50}', text):
+            candidates.append((len(m.group()), m.group(), 1))
+        
+        # 去重并按优先级+长度排序
+        seen, unique = {}, []
+        for length, cand, priority in candidates:
+            if cand not in seen:
+                seen[cand] = True
+                unique.append((length, cand, priority))
+        unique.sort(key=lambda x: (-x[2], -x[0]))  # 优先级高 → 长度长优先
+        
+        stop_words = {"全文", "本文", "论文", "该文", "该论文", "建议", "问题", "内容", "相关",
+                       "主要", "重要", "严重", "轻微", "具体", "有关", "研究", "分析"}
+        for _, cand, _ in unique:
+            if cand in stop_words:
+                continue
+            if cand in paper:
+                return cand[:60]
+        
+        # 降级：搜索关键词
+        words = re.findall(r'[\u4e00-\u9fff]{4,8}', text)
+        for w in sorted(set(words), key=len, reverse=True):
+            if w not in stop_words and w in paper:
                 return w[:60]
-        return candidate[:60] if candidate else ""
+        
+        return text.strip()[:40][:60]
 
     def _infer_chapter(text: str, paper: str) -> str:
         """推断章节标题。"""
@@ -370,6 +426,12 @@ def normalize_issues_for_annotation(analysis_result: str, paper_text: str) -> st
             "quality_gate_passed": quality_passed
         }
     }
+    # 保存到固定路径，供 generate_markdown_report 自动读取
+    try:
+        with open("/tmp/last_issues.json", "w", encoding="utf-8") as f:
+            json.dump(result, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
     return json.dumps(result, ensure_ascii=False, indent=2)
 
 
@@ -541,8 +603,41 @@ def generate_annotated_docx(docx_path: str, issues_json: str) -> str:
                     "traceback": None
                 }, ensure_ascii=False)
 
+            # 上传到对象存储并返回下载 URL
+            download_url = None
+            try:
+                from coze_coding_dev_sdk.s3 import S3SyncStorage
+                storage = S3SyncStorage(
+                    endpoint_url=os.getenv("COZE_BUCKET_ENDPOINT_URL"),
+                    bucket_name=os.getenv("COZE_BUCKET_NAME"),
+                )
+                # 生成唯一文件名（去除空格避免签名问题）
+                import time
+                base_name = os.path.basename(out_path).replace(" ", "_")
+                unique_name = f"papers/{int(time.time())}_{base_name}"
+                # 流式上传本地文件
+                with open(out_path, "rb") as f:
+                    file_key = storage.stream_upload_file(
+                        fileobj=f,
+                        file_name=unique_name,
+                        content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    )
+                # 生成预签名 URL（24小时有效期）
+                download_url = storage.generate_presigned_url(
+                    key=file_key,
+                    expire_time=86400
+                )
+            except Exception as ue:
+                import logging
+                logging.warning(f"[S3Upload] 上传失败: {ue}")
+                download_url = None
+
+            if not download_url:
+                download_url = f"本地路径（请从项目文件列表下载）: {out_path}"
+
             return json.dumps({
                 "success": True,
+                "download_url": download_url,
                 "annotated_docx_path": out_path,
                 "readback": {
                     "commentRangeStart": start_count,
@@ -576,8 +671,50 @@ def generate_annotated_docx(docx_path: str, issues_json: str) -> str:
 
 
 @tool
-def generate_markdown_report(analysis_result: str, issues_json: str) -> str:
-    """生成完整 Markdown 审查报告。"""
+def generate_markdown_report(analysis_result: str = "") -> str:
+    """生成完整 Markdown 审查报告。
+    
+    若 analysis_result 为空，则自动从上次批注生成时保存的 issues.json 读取。
+    issues.json 由 normalize_issues_for_annotation 在上一次调用时自动保存到固定路径。
+    """
+    # 尝试读取上次保存的 issues.json
+    issues_json_str = ""
+    issues_path = "/tmp/last_issues.json"
+    try:
+        if os.path.exists(issues_path):
+            with open(issues_path, "r", encoding="utf-8") as f:
+                issues_data = json.load(f)
+            issues_json_str = json.dumps(issues_data, ensure_ascii=False)
+    except Exception:
+        pass
+
+    # 如果调用者传了 issues_json 路径（从 analysis_result 中提取），则读取该文件
+    if not issues_json_str:
+        # 查找最近的 .debug.issues.json 文件
+        import glob
+        candidates = glob.glob("/workspace/projects/**/*.debug.issues.json", recursive=True) + \
+                     glob.glob("/tmp/*.debug.issues.json") + \
+                     glob.glob("/tmp/papers/*.debug.issues.json", recursive=True)
+        if candidates:
+            candidates.sort(key=os.path.getmtime, reverse=True)
+            try:
+                with open(candidates[0], "r", encoding="utf-8") as f:
+                    issues_data = json.load(f)
+                issues_json_str = json.dumps(issues_data, ensure_ascii=False)
+            except Exception:
+                pass
+
+    # 如果仍然没有 issues_json，给出清晰提示
+    if not issues_json_str and not analysis_result:
+        return json.dumps({
+            "success": False,
+            "error": "缺少分析文本和 issues_json。请在 analysis_result 中传入审查分析文本，或先运行 normalize_issues_for_annotation 生成 issues.json。",
+            "suggestion": "先调用 normalize_issues_for_annotation(analysis_result, paper_text)，再调用 generate_markdown_report(analysis_result, issues_json)"
+        }, ensure_ascii=False)
+
+    if not analysis_result:
+        analysis_result = "# 论文质检审查报告\n\n（请查阅完整审查报告）"
+
     try:
         from coze_coding_dev_sdk import DocumentGenerationClient
         report_md = f"""# 法学论文质检审查报告
@@ -589,7 +726,7 @@ def generate_markdown_report(analysis_result: str, issues_json: str) -> str:
 ## 二、问题清单
 
 ```json
-{issues_json}
+{issues_json_str}
 ```
 
 ## 三、说明
@@ -606,7 +743,7 @@ def generate_markdown_report(analysis_result: str, issues_json: str) -> str:
         return json.dumps({
             "success": False, "error": str(e),
             "traceback": traceback.format_exc(),
-            "markdown": analysis_result
+            "markdown": f"# 法学论文质检审查报告\n\n## 一、审查概况\n\n{analysis_result}\n\n## 二、问题清单\n\nissues.json 读取失败: {str(e)}\n\n## 三、说明\n\n- 本报告由法学论文质检自查智能体自动生成\n- 审查结果仅供参考，请以导师/评阅人意见为准"
         }, ensure_ascii=False)
 
 

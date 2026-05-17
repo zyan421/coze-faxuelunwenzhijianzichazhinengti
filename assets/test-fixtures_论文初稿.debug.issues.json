@@ -12,8 +12,8 @@
         "paragraph_index": 0
       },
       "excerpt": "",
-      "anchor_text": "引言1500字占比18.75%过高",
-      "problem": "引言1500字占比18.75%过高",
+      "anchor_text": "**结构逻辑（严重）**：全文共4章，引言1500字占比18.75%过高，对策建",
+      "problem": "**结构逻辑（严重）**：全文共4章，引言1500字占比18.75%过高，对策建议章节仅1000字占比不足13%，章节比例严重失衡；第二章理论基础与第三章实证分析之间无逻辑过渡段落，未说明数据与核心论点的对应关系，逻辑连贯性不足。",
       "suggestion": [
         "请根据具体上下文补充修改建议"
       ],
@@ -29,16 +29,142 @@
         "chapter": "正文",
         "paragraph_index": 0
       },
-      "excerpt": "法条引用与原文存在偏差",
-      "anchor_text": "法条引用与原文存在偏差",
-      "problem": "法条引用与原文存在偏差",
+      "excerpt": "**规范适用（严重）**：引用《行政复议法实施条例》第12条时表述为“行政机关与法律授权组织共同作为被申请人”，与...",
+      "anchor_text": "**规范适用（严重）**：引用《行政复议法实施条例》第12条时表述为“行政机关与",
+      "problem": "**规范适用（严重）**：引用《行政复议法实施条例》第12条时表述为“行政机关与法律授权组织共同作为被申请人”，与法条原文存在偏差，属于法条引用错误，可能影响论证合法性。",
       "suggestion": [
         "请根据具体上下文补充修改建议"
       ],
       "group_id": "g-002"
     },
     {
-      "id": "citation-citation-format-003",
+      "id": "thesis-academic-integrity-003",
+      "source": "thesis",
+      "category": "academic-integrity",
+      "severity": "major",
+      "scope": "sentence",
+      "locator": {
+        "chapter": "正文",
+        "paragraph_index": 0
+      },
+      "excerpt": "**学术诚信（严重）**：全文预估重复率18%，其中2段共302字内容来自公开行政法科普文章未标注引用，存在轻度学...",
+      "anchor_text": "**学术诚信（严重）**：全文预估重复率18%，其中2段共302字内容来自公开行",
+      "problem": "**学术诚信（严重）**：全文预估重复率18%，其中2段共302字内容来自公开行政法科普文章未标注引用，存在轻度学术不端风险。",
+      "suggestion": [
+        "请根据具体上下文补充修改建议"
+      ],
+      "group_id": "g-003"
+    },
+    {
+      "id": "thesis-argumentation-004",
+      "source": "thesis",
+      "category": "argumentation",
+      "severity": "major",
+      "scope": "paragraph",
+      "locator": {
+        "chapter": "正文",
+        "paragraph_index": 0
+      },
+      "excerpt": "**论证严谨性（严重）**：表述“行政复议便民化改革可降低群众维权成本60%”无引用来源、无数据支撑，疑为虚假表述...",
+      "anchor_text": "**论证严谨性（严重）**：表述“行政复议便民化改革可降低群众维权成本60%”无",
+      "problem": "**论证严谨性（严重）**：表述“行政复议便民化改革可降低群众维权成本60%”无引用来源、无数据支撑，疑为虚假表述；“行政复议公正度不足”等3处核心论点仅给出观点，未配套案例或统计数据支撑，论证充分度不足。",
+      "suggestion": [
+        "请根据具体上下文补充修改建议"
+      ],
+      "group_id": "g-002"
+    },
+    {
+      "id": "thesis-empirical-005",
+      "source": "thesis",
+      "category": "empirical",
+      "severity": "major",
+      "scope": "paragraph",
+      "locator": {
+        "chapter": "正文",
+        "paragraph_index": 0
+      },
+      "excerpt": "**实证分析（严重）**：表述“2023年全国行政复议案件受理率达95%”未标注权威数据来源；未说明实证数据的采集...",
+      "anchor_text": "**实证分析（严重）**：表述“2023年全国行政复议案件受理率达95%”未标注",
+      "problem": "**实证分析（严重）**：表述“2023年全国行政复议案件受理率达95%”未标注权威数据来源；未说明实证数据的采集方法、样本覆盖范围，实证分析有效性不足。",
+      "suggestion": [
+        "请根据具体上下文补充修改建议"
+      ],
+      "group_id": "g-004"
+    },
+    {
+      "id": "thesis-literature-review-006",
+      "source": "thesis",
+      "category": "literature-review",
+      "severity": "major",
+      "scope": "paragraph",
+      "locator": {
+        "chapter": "正文",
+        "paragraph_index": 0
+      },
+      "excerpt": "**文献综述（严重）**：仅覆盖2020年之前的研究文献，未纳入2023年新修订《行政复议法》出台后的相关研究成果...",
+      "anchor_text": "**文献综述（严重）**：仅覆盖2020年之前的研究文献，未纳入2023年新修订",
+      "problem": "**文献综述（严重）**：仅覆盖2020年之前的研究文献，未纳入2023年新修订《行政复议法》出台后的相关研究成果，研究空白梳理不清晰，未明确说明本文相较于现有研究的边际贡献。",
+      "suggestion": [
+        "请根据具体上下文补充修改建议"
+      ],
+      "group_id": "g-005"
+    },
+    {
+      "id": "thesis-legal-norms-007",
+      "source": "thesis",
+      "category": "legal-norms",
+      "severity": "major",
+      "scope": "paragraph",
+      "locator": {
+        "chapter": "正文",
+        "paragraph_index": 0
+      },
+      "excerpt": "**语言表达（严重）**：存在3处术语使用错误，例如将“行政复议申请人”误写为“行政相对人申诉人”；2处口语化表述...",
+      "anchor_text": "**语言表达（严重）**：存在3处术语使用错误，例如将“行政复议申请人”误写为“",
+      "problem": "**语言表达（严重）**：存在3处术语使用错误，例如将“行政复议申请人”误写为“行政相对人申诉人”；2处口语化表述，例如“便民化改革的好处是对群众好，对政府也好”表述不规范，不符合学术写作要求。",
+      "suggestion": [
+        "请根据具体上下文补充修改建议"
+      ],
+      "group_id": "g-006"
+    },
+    {
+      "id": "thesis-policy-008",
+      "source": "thesis",
+      "category": "policy",
+      "severity": "major",
+      "scope": "paragraph",
+      "locator": {
+        "chapter": "正文",
+        "paragraph_index": 0
+      },
+      "excerpt": "**对策建议（严重）**：提出的“所有复议案件都开通线上办理通道”未考虑欠发达地区老年群体使用互联网的障碍，未配套...",
+      "anchor_text": "**对策建议（严重）**：提出的“所有复议案件都开通线上办理通道”未考虑欠发达地",
+      "problem": "**对策建议（严重）**：提出的“所有复议案件都开通线上办理通道”未考虑欠发达地区老年群体使用互联网的障碍，未配套线下兜底服务措施，可操作性不足。",
+      "suggestion": [
+        "请根据具体上下文补充修改建议"
+      ],
+      "group_id": "g-007"
+    },
+    {
+      "id": "thesis-structure-009",
+      "source": "thesis",
+      "category": "structure",
+      "severity": "minor",
+      "scope": "chapter",
+      "locator": {
+        "chapter": "正文",
+        "paragraph_index": 0
+      },
+      "excerpt": "",
+      "anchor_text": "**选题质量（轻微）**：选题符合行政法实务热点方向，具备基础实践价值，但创新点",
+      "problem": "**选题质量（轻微）**：选题符合行政法实务热点方向，具备基础实践价值，但创新点不足，仅重复现有公开的便民化改革措施，未结合地方实践提出本土化优化路径。 ## 引注格式专项审查（GB/T 7714）",
+      "suggestion": [
+        "请根据具体上下文补充修改建议"
+      ],
+      "group_id": "g-001"
+    },
+    {
+      "id": "citation-citation-format-010",
       "source": "citation",
       "category": "citation-format",
       "severity": "minor",
@@ -47,36 +173,108 @@
         "chapter": "正文",
         "paragraph_index": 0
       },
-      "excerpt": "脚注序号跳号",
-      "anchor_text": "脚注序号跳号",
-      "problem": "脚注序号跳号",
+      "excerpt": "脚注序号未严格按正文出现顺序编码，存在2处跳号、1处重复编号",
+      "anchor_text": "脚注序号未严格按正文出现顺序编码，存在2处跳号、1处重复编号",
+      "problem": "脚注序号未严格按正文出现顺序编码，存在2处跳号、1处重复编号",
       "suggestion": [
         "请根据具体上下文补充修改建议"
       ],
-      "group_id": "g-003"
+      "group_id": "g-008"
     },
     {
-      "id": "citation-citation-missing-info-004",
-      "source": "citation",
-      "category": "citation-missing-info",
+      "id": "thesis-literature-review-011",
+      "source": "thesis",
+      "category": "literature-review",
       "severity": "minor",
-      "scope": "sentence",
+      "scope": "paragraph",
       "locator": {
         "chapter": "正文",
         "paragraph_index": 0
       },
-      "excerpt": "缺少出版地",
-      "anchor_text": "缺少出版地",
-      "problem": "缺少出版地",
+      "excerpt": "3篇专著类参考文献缺少出版地信息",
+      "anchor_text": "3篇专著类参考文献缺少出版地信息",
+      "problem": "3篇专著类参考文献缺少出版地信息",
       "suggestion": [
         "请根据具体上下文补充修改建议"
       ],
-      "group_id": "g-004"
+      "group_id": "g-005"
+    },
+    {
+      "id": "thesis-literature-review-012",
+      "source": "thesis",
+      "category": "literature-review",
+      "severity": "minor",
+      "scope": "paragraph",
+      "locator": {
+        "chapter": "正文",
+        "paragraph_index": 0
+      },
+      "excerpt": "2篇期刊类参考文献缺少期号信息",
+      "anchor_text": "2篇期刊类参考文献缺少期号信息",
+      "problem": "2篇期刊类参考文献缺少期号信息",
+      "suggestion": [
+        "请根据具体上下文补充修改建议"
+      ],
+      "group_id": "g-005"
+    },
+    {
+      "id": "thesis-legal-norms-013",
+      "source": "thesis",
+      "category": "legal-norms",
+      "severity": "minor",
+      "scope": "paragraph",
+      "locator": {
+        "chapter": "正文",
+        "paragraph_index": 0
+      },
+      "excerpt": "3处法律文件引用未标注发布年份和发文字号",
+      "anchor_text": "3处法律文件引用未标注发布年份和发文字号",
+      "problem": "3处法律文件引用未标注发布年份和发文字号",
+      "suggestion": [
+        "请根据具体上下文补充修改建议"
+      ],
+      "group_id": "g-006"
+    },
+    {
+      "id": "thesis-literature-review-014",
+      "source": "thesis",
+      "category": "literature-review",
+      "severity": "minor",
+      "scope": "paragraph",
+      "locator": {
+        "chapter": "正文",
+        "paragraph_index": 0
+      },
+      "excerpt": "2处外文文献作者姓名的姓、名顺序倒置，不符合GB/T 7714要求",
+      "anchor_text": "2处外文文献作者姓名的姓、名顺序倒置，不符合GB/T 7714要求",
+      "problem": "2处外文文献作者姓名的姓、名顺序倒置，不符合GB/T 7714要求",
+      "suggestion": [
+        "请根据具体上下文补充修改建议"
+      ],
+      "group_id": "g-005"
+    },
+    {
+      "id": "thesis-literature-review-015",
+      "source": "thesis",
+      "category": "literature-review",
+      "severity": "minor",
+      "scope": "paragraph",
+      "locator": {
+        "chapter": "正文",
+        "paragraph_index": 0
+      },
+      "excerpt": "脚注与参考文献条目存在3处不对应，存在漏引情况",
+      "anchor_text": "脚注与参考文献条目存在3处不对应，存在漏引情况",
+      "problem": "脚注与参考文献条目存在3处不对应，存在漏引情况",
+      "suggestion": [
+        "请根据具体上下文补充修改建议"
+      ],
+      "group_id": "g-005"
     }
   ],
   "quality_gate": {
-    "total_issues": 4,
-    "substantive_issues": 2,
-    "quality_gate_passed": false
+    "total_issues": 15,
+    "substantive_issues": 8,
+    "quality_gate_passed": true
   }
 }

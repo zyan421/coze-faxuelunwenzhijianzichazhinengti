@@ -1,0 +1,172 @@
+{
+  "schema_version": "1.0",
+  "issues": [
+    {
+      "id": "thesis-structure-001",
+      "source": "thesis",
+      "category": "structure",
+      "severity": "major",
+      "scope": "chapter",
+      "locator": {
+        "chapter": "正文",
+        "paragraph_index": 0
+      },
+      "excerpt": "",
+      "anchor_text": "**结构逻辑（严重）**：全文共6章，绪论部分约2600字占比达26.6%过高。",
+      "problem": "**结构逻辑（严重）**：全文共6章，绪论部分约2600字占比达26.6%过高。建议：缩减绪论至15%以内，扩充对策章节至25%左右。",
+      "suggestion": [
+        "请根据具体上下文补充修改建议"
+      ],
+      "group_id": "g-001"
+    },
+    {
+      "id": "citation-citation-format-002",
+      "source": "citation",
+      "category": "citation-format",
+      "severity": "major",
+      "scope": "sentence",
+      "locator": {
+        "chapter": "正文",
+        "paragraph_index": 65
+      },
+      "excerpt": "**学术诚信（严重）**：全文预估重复率约15%，其中\"4E绩效评价理论\"\"政府采购规模3.4万亿元\"等内容未标注...",
+      "anchor_text": "压力日与俱增",
+      "problem": "**学术诚信（严重）**：全文预估重复率约15%，其中\"4E绩效评价理论\"\"政府采购规模3.4万亿元\"等内容未标注引用来源。致谢部分使用\"磕磕绊绊\"\"压力日与俱增\"等口语化表述。",
+      "suggestion": [
+        "请根据具体上下文补充修改建议"
+      ],
+      "group_id": "g-002"
+    },
+    {
+      "id": "thesis-argumentation-003",
+      "source": "thesis",
+      "category": "argumentation",
+      "severity": "major",
+      "scope": "paragraph",
+      "locator": {
+        "chapter": "正文",
+        "paragraph_index": 0
+      },
+      "excerpt": "**论证严谨性（严重）**：表述\"政府采购规模维持在约3.4万亿元水平\"未标注权威来源。美国、德国采购模式借鉴性论...",
+      "anchor_text": "**论证严谨性（严重）**：表述\"政府采购规模维持在约3.4万亿元水平\"未标注权",
+      "problem": "**论证严谨性（严重）**：表述\"政府采购规模维持在约3.4万亿元水平\"未标注权威来源。美国、德国采购模式借鉴性论点缺乏数据支撑。",
+      "suggestion": [
+        "请根据具体上下文补充修改建议"
+      ],
+      "group_id": "g-003"
+    },
+    {
+      "id": "thesis-literature-review-004",
+      "source": "thesis",
+      "category": "literature-review",
+      "severity": "major",
+      "scope": "paragraph",
+      "locator": {
+        "chapter": "正文",
+        "paragraph_index": 0
+      },
+      "excerpt": "**文献综述（严重）**：国外研究仅覆盖2015年之前的成果，未纳入最新研究。",
+      "anchor_text": "**文献综述（严重）**：国外研究仅覆盖2015年之前的成果，未纳入最新研究。",
+      "problem": "**文献综述（严重）**：国外研究仅覆盖2015年之前的成果，未纳入最新研究。",
+      "suggestion": [
+        "请根据具体上下文补充修改建议"
+      ],
+      "group_id": "g-004"
+    },
+    {
+      "id": "thesis-legal-norms-005",
+      "source": "thesis",
+      "category": "legal-norms",
+      "severity": "major",
+      "scope": "paragraph",
+      "locator": {
+        "chapter": "正文",
+        "paragraph_index": 10
+      },
+      "excerpt": "**规范适用（严重）**：未提及2024年新修订《政府采购法》中的\"竞争性磋商\"\"单一来源采购\"等新方式。",
+      "anchor_text": "单一来源采购",
+      "problem": "**规范适用（严重）**：未提及2024年新修订《政府采购法》中的\"竞争性磋商\"\"单一来源采购\"等新方式。",
+      "suggestion": [
+        "请根据具体上下文补充修改建议"
+      ],
+      "group_id": "g-005"
+    },
+    {
+      "id": "thesis-language-006",
+      "source": "thesis",
+      "category": "language",
+      "severity": "major",
+      "scope": "paragraph",
+      "locator": {
+        "chapter": "正文",
+        "paragraph_index": 52
+      },
+      "excerpt": "**语言表达（严重）**：存在\"重拳打在棉花上\"\"走秀\"等口语化表述。",
+      "anchor_text": "重拳打在棉花上",
+      "problem": "**语言表达（严重）**：存在\"重拳打在棉花上\"\"走秀\"等口语化表述。",
+      "suggestion": [
+        "请根据具体上下文补充修改建议"
+      ],
+      "group_id": "g-006"
+    },
+    {
+      "id": "thesis-literature-review-007",
+      "source": "thesis",
+      "category": "literature-review",
+      "severity": "minor",
+      "scope": "paragraph",
+      "locator": {
+        "chapter": "正文",
+        "paragraph_index": 0
+      },
+      "excerpt": "**引注格式（轻微）**：共8处GB/T 7714格式问题，包括正文漏引、电子文献缺访问日期、期刊缺起止页码等。",
+      "anchor_text": "**引注格式（轻微）**：共8处GB/T 7714格式问题，包括正文漏引、电子文",
+      "problem": "**引注格式（轻微）**：共8处GB/T 7714格式问题，包括正文漏引、电子文献缺访问日期、期刊缺起止页码等。",
+      "suggestion": [
+        "请根据具体上下文补充修改建议"
+      ],
+      "group_id": "g-004"
+    },
+    {
+      "id": "thesis-empirical-008",
+      "source": "thesis",
+      "category": "empirical",
+      "severity": "minor",
+      "scope": "paragraph",
+      "locator": {
+        "chapter": "正文",
+        "paragraph_index": 0
+      },
+      "excerpt": "**实证分析（轻微）**：仅用二手审计数据，未针对医院采购特殊性做独立分析。",
+      "anchor_text": "**实证分析（轻微）**：仅用二手审计数据，未针对医院采购特殊性做独立分析。",
+      "problem": "**实证分析（轻微）**：仅用二手审计数据，未针对医院采购特殊性做独立分析。",
+      "suggestion": [
+        "请根据具体上下文补充修改建议"
+      ],
+      "group_id": "g-007"
+    },
+    {
+      "id": "thesis-policy-009",
+      "source": "thesis",
+      "category": "policy",
+      "severity": "minor",
+      "scope": "paragraph",
+      "locator": {
+        "chapter": "正文",
+        "paragraph_index": 3
+      },
+      "excerpt": "**对策建议（轻微）**：\"建立区域询价云平台\"未说明建设主体与资金来源。",
+      "anchor_text": "建立区域询价云平台",
+      "problem": "**对策建议（轻微）**：\"建立区域询价云平台\"未说明建设主体与资金来源。",
+      "suggestion": [
+        "请根据具体上下文补充修改建议"
+      ],
+      "group_id": "g-008"
+    }
+  ],
+  "quality_gate": {
+    "total_issues": 9,
+    "substantive_issues": 6,
+    "quality_gate_passed": true
+  }
+}
