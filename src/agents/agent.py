@@ -87,20 +87,102 @@ def welcome_and_guide() -> str:
 
 
 @tool
-def read_paper_file(file_path: str) -> Dict[str, Any]:
+def read_paper_file(file_input: str) -> Dict[str, Any]:
     """
     读取论文文件。
+
+    支持多种输入方式：
+    - 本地文件路径（如：/tmp/paper.docx）
+    - 文件URL（如：https://example.com/paper.docx）
+    - Coze平台文件ID（如：file_xxxxxx 或 file_path）
 
     支持格式：.docx, .pdf（文本型）, .txt, .md
     扫描件PDF无法处理，会提示用户换用Word或OCR。
 
     Args:
-        file_path: 论文文件路径
+        file_input: 文件路径、URL或文件ID
 
     Returns:
         包含论文文本、结构分析、元数据的字典
     """
-    logger.info(f"读取论文文件: {file_path}")
+    logger.info(f"读取论文文件: {file_input}")
+
+    # 导入必要的模块
+    import os
+    import tempfile
+    import requests
+    from urllib.parse import urlparse
+
+    # 判断输入类型
+    is_url = file_input.startswith(('http://', 'https://'))
+    is_coze_file = file_input.startswith(('file_', 'file-id:', 'attach_')) or '/' not in file_input and '.' not in file_input
+
+    file_path = file_input
+    temp_file = None
+
+    # 如果是URL，先下载到临时文件
+    if is_url:
+        try:
+            response = requests.get(file_input, timeout=30)
+            response.raise_for_status()
+            # 从URL中提取文件名
+            parsed = urlparse(file_input)
+            filename = os.path.basename(parsed.path)
+            if not filename or '.' not in filename:
+                filename = 'uploaded_file'
+            # 保存到临时文件
+            temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(filename)[1] if '.' in filename else '.tmp')
+            temp_file.write(response.content)
+            temp_file.close()
+            file_path = temp_file.name
+            logger.info(f"从URL下载文件到: {file_path}")
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"从URL下载文件失败: {str(e)}"
+            }
+    elif is_coze_file:
+        # Coze平台文件：尝试从环境变量或配置获取文件
+        # 首先检查是否是Coze平台的文件路径（通常在/tmp或特定目录下）
+        coze_file_paths = [
+            f"/tmp/{file_input}",
+            f"/tmp/uploads/{file_input}",
+            f"/workspace/projects/assets/{file_input}",
+            file_input  # 直接尝试作为路径
+        ]
+        found = False
+        for path in coze_file_paths:
+            if os.path.exists(path):
+                file_path = path
+                found = True
+                break
+        if not found:
+            # 如果是Coze上传的文件，可能在临时目录中
+            for root, dirs, files in os.walk('/tmp'):
+                if file_input in files:
+                    file_path = os.path.join(root, file_input)
+                    found = True
+                    break
+                # 也检查不带扩展名的文件
+                for f in files:
+                    if file_input in f:
+                        file_path = os.path.join(root, f)
+                        found = True
+                        break
+                if found:
+                    break
+        if not found:
+            return {
+                "success": False,
+                "error": f"无法找到Coze平台上传的文件: {file_input}。请确认文件已上传成功。"
+            }
+    else:
+        # 本地文件路径
+        if not os.path.exists(file_path):
+            return {
+                "success": False,
+                "error": f"文件不存在: {file_path}"
+            }
 
     path = Path(file_path)
     if not path.exists():
@@ -111,17 +193,32 @@ def read_paper_file(file_path: str) -> Dict[str, Any]:
 
     suffix = path.suffix.lower()
 
-    if suffix == '.docx':
-        return _read_docx(file_path)
-    elif suffix == '.pdf':
-        return _read_pdf(file_path)
-    elif suffix in ['.txt', '.md']:
-        return _read_text(file_path)
-    else:
-        return {
-            "success": False,
-            "error": f"不支持的文件格式: {suffix}。请上传 .docx、.pdf、.txt 或 .md 文件。"
-        }
+    try:
+        if suffix == '.docx':
+            result = _read_docx(file_path)
+        elif suffix == '.pdf':
+            result = _read_pdf(file_path)
+        elif suffix in ['.txt', '.md']:
+            result = _read_text(file_path)
+        else:
+            result = {
+                "success": False,
+                "error": f"不支持的文件格式: {suffix}。请上传 .docx、.pdf、.txt 或 .md 文件。"
+            }
+    finally:
+        # 清理临时文件
+        if temp_file and os.path.exists(temp_file.name):
+            try:
+                os.unlink(temp_file.name)
+            except:
+                pass
+
+    if result.get("success"):
+        result["file_path"] = str(path)
+        result["file_name"] = path.name
+        result["file_size"] = path.stat().st_size if path.exists() else 0
+
+    return result
 
 
 def _read_docx(file_path: str) -> Dict[str, Any]:
