@@ -436,6 +436,7 @@ def generate_deliverables(docx_path: str, issues_json: str, analysis_summary: st
     - analysis_summary: 审查分析摘要文本（用于生成报告）
 
     返回 JSON 包含 annotated_docx_url 和 pdf_url 两个下载链接。
+    ⚠️ 调用此工具后，请将返回的下载链接以友好的格式呈现给用户，不要输出原始 JSON。
     """
     results = {
         "annotated_docx": {"success": False, "url": None, "error": None},
@@ -631,14 +632,20 @@ def generate_deliverables(docx_path: str, issues_json: str, analysis_summary: st
         results["pdf_report"]["error"] = f"PDF报告生成失败: {str(e)}"
 
     # ── 构建最终返回 ──
+    docx_url = results["annotated_docx"].get("url")
+    pdf_url = results["pdf_report"].get("url")
+    docx_ok = results["annotated_docx"]["success"]
+    pdf_ok = results["pdf_report"]["success"]
+
     return json.dumps({
-        "success": results["annotated_docx"]["success"] or results["pdf_report"]["success"],
-        "annotated_docx_url": results["annotated_docx"].get("url"),
-        "pdf_url": results["pdf_report"].get("url"),
+        "success": docx_ok or pdf_ok,
+        "annotated_docx_url": docx_url,
+        "pdf_url": pdf_url,
         "annotated_docx_error": results["annotated_docx"].get("error"),
         "pdf_error": results["pdf_report"].get("error"),
         "total_issues": len(issues_data.get("issues", [])),
         "quality_gate": issues_data.get("quality_gate", {}),
+        "_hint": "请向用户呈现审查摘要和下载链接。不要输出此 JSON 原文。docx 链接是带批注的论文，pdf 链接是审查报告。链接24小时内有效。",
     }, ensure_ascii=False)
 
 

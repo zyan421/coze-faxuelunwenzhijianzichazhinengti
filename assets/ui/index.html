@@ -50,10 +50,18 @@ body{font-family:'Noto Serif SC','PingFang SC','Microsoft YaHei',serif;backgroun
 .msg-bubble hr{border:none;border-top:1px solid #e8e4dd;margin:8px 0}
 .msg-bubble blockquote{border-left:3px solid #B8860B;padding:4px 10px;margin:6px 0;background:#faf8f5;color:#555;font-size:13px}
 .msg-bubble code{background:#f5f0e8;padding:1px 4px;border-radius:3px;font-size:13px}
+/* JSON fold */
+.json-fold{margin:8px 0;border:1px solid #e8e4dd;border-radius:8px;overflow:hidden}
+.json-fold summary{padding:8px 12px;background:#faf8f5;cursor:pointer;font-size:13px;color:#555;user-select:none;list-style:none;display:flex;align-items:center}
+.json-fold summary::-webkit-details-marker{display:none}
+.json-fold summary::before{content:'▶';font-size:10px;margin-right:8px;color:#aaa;transition:transform .2s}
+.json-fold[open] summary::before{transform:rotate(90deg)}
+.json-fold summary:hover{background:#f5f0e8}
 /* Download button */
 .dl-btn{display:inline-flex;align-items:center;gap:6px;background:linear-gradient(135deg,#9F191E,#7a1418);color:#fff !important;padding:8px 16px;border-radius:8px;text-decoration:none !important;font-size:14px;font-weight:600;margin:6px 4px 6px 0;transition:transform .15s,box-shadow .15s;box-shadow:0 2px 6px rgba(159,25,30,.3)}
 .dl-btn:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(159,25,30,.4)}
 .dl-btn svg{width:16px;height:16px}
+.dl-btn-wrap{display:flex;align-items:center;flex-wrap:wrap;margin:6px 0}
 /* Progress */
 .progress-panel{margin:8px 0;padding:10px 14px;background:#faf8f5;border:1px solid #e8e4dd;border-radius:8px;font-size:14px}
 .progress-step{display:flex;align-items:center;gap:6px;padding:3px 0;color:#666}
@@ -221,19 +229,18 @@ body{font-family:'Noto Serif SC','PingFang SC','Microsoft YaHei',serif;backgroun
     <p class="modal-desc">配置自定义大语言模型，使用您自己的 API Key 调用模型</p>
 
     <div class="modal-tip">
-      💡 <b>推荐选用高性能多模态模型</b>，模型性能将直接影响审查质量与批注准确性。<br>
-      推荐模型：<b>kimi-k2-6</b>、<b>GLM-5.1</b>、<b>doubao-seed-2-0-pro</b> 等国内前沿模型。<br>
+      💡 <b>推荐选用高性能模型</b>，模型性能将直接影响审查质量与批注准确性。<br>
+      推荐模型：<b>DeepSeek-V3</b>、<b>GLM-4-Plus</b>、<b>Qwen-Plus</b> 等国内前沿模型。<br>
       ⚠️ 不推荐使用轻量/迷你模型，可能导致批注位置不准或分析浅薄。
     </div>
 
     <label>模型名称</label>
-    <input id="inputModel" placeholder="如：deepseek-chat、glm-5-plus、kimi-k2-6">
+    <input id="inputModel" placeholder="如：deepseek-chat、glm-4-plus、qwen-plus">
     <div class="preset-row">
       <button class="preset-btn" onclick="applyPreset('deepseek-chat','https://api.deepseek.com')">DeepSeek</button>
-      <button class="preset-btn" onclick="applyPreset('glm-5-plus','https://open.bigmodel.cn/api/paas/v4')">智谱GLM</button>
+      <button class="preset-btn" onclick="applyPreset('glm-4-plus','https://open.bigmodel.cn/api/paas/v4')">智谱GLM</button>
       <button class="preset-btn" onclick="applyPreset('qwen-plus','https://dashscope.aliyuncs.com/compatible-mode/v1')">通义千问</button>
-      <button class="preset-btn" onclick="applyPreset('doubao-seed-2-0-pro-260215','https://ark.cn-beijing.volces.com/api/v3')">豆包</button>
-      <button class="preset-btn" onclick="applyPreset('deepseek-v4-flash','https://api.siliconflow.cn/v1')">硅基流动</button>
+      <button class="preset-btn" onclick="applyPreset('Pro/deepseek-ai/DeepSeek-V3','https://api.siliconflow.cn/v1')">硅基流动</button>
     </div>
 
     <label>Base URL（OpenAI 兼容接口）</label>
@@ -493,12 +500,26 @@ function setAnswerText(bubble, html) {
 function formatAnswer(text) {
   let s = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 
+  // Collapsible JSON blocks (```json ... ``` or bare {/} JSON) → <details> fold
+  s = s.replace(/```json\s*\n([\s\S]*?)```/g, (m, jsonBody) => {
+    const preview = jsonBody.trim().substring(0, 80).replace(/\n/g,' ');
+    return `<details class="json-fold"><summary>📋 JSON 数据（点击展开）<span style="color:#aaa;font-size:11px;margin-left:8px">${preview}…</span></summary><pre style="background:#f5f0e8;padding:8px;border-radius:6px;font-size:12px;overflow-x:auto;max-height:300px;overflow-y:auto">${jsonBody}</pre></details>`;
+  });
+  // Also catch generic code blocks
+  s = s.replace(/```\s*\n([\s\S]*?)```/g, (m, codeBody) => {
+    if (codeBody.trim().startsWith('{') || codeBody.trim().startsWith('[')) {
+      const preview = codeBody.trim().substring(0, 80).replace(/\n/g,' ');
+      return `<details class="json-fold"><summary>📋 JSON 数据（点击展开）<span style="color:#aaa;font-size:11px;margin-left:8px">${preview}…</span></summary><pre style="background:#f5f0e8;padding:8px;border-radius:6px;font-size:12px;overflow-x:auto;max-height:300px;overflow-y:auto">${codeBody}</pre></details>`;
+    }
+    return `<pre style="background:#f5f0e8;padding:8px;border-radius:6px;font-size:13px;overflow-x:auto">${codeBody}</pre>`;
+  });
+
   // Convert markdown-style links [text](url) to download buttons
   s = s.replace(/\[([^\]]*)\]\((https?:\/\/[^\s\)]+)\)/g, (m, label, url) => {
     const isDoc = url.includes('.docx') || url.includes('.pdf');
     if (isDoc) {
       const icon = url.includes('.docx') ? '📝' : '📄';
-      return `<a href="${url}" target="_blank" class="dl-btn">${icon} ${label}</a>`;
+      return `<div class="dl-btn-wrap"><a href="${url}" target="_blank" class="dl-btn">${icon} ${label}</a><span style="font-size:11px;color:#999;margin-left:4px">⏰ 24h内有效</span></div>`;
     }
     return `<a href="${url}" target="_blank" style="color:#9F191E;text-decoration:underline">${label}</a>`;
   });
@@ -510,7 +531,7 @@ function formatAnswer(text) {
     if (isDoc) {
       const label = url.includes('.docx') ? '下载批注文档 (.docx)' : '下载审查报告 (.pdf)';
       const icon = url.includes('.docx') ? '📝' : '📄';
-      return `<a href="${url}" target="_blank" class="dl-btn">${icon} ${label}</a>`;
+      return `<div class="dl-btn-wrap"><a href="${url}" target="_blank" class="dl-btn">${icon} ${label}</a><span style="font-size:11px;color:#999;margin-left:4px">⏰ 链接24小时内有效</span></div>`;
     }
     return `<a href="${url}" target="_blank" style="color:#9F191E">${url}</a>`;
   });
@@ -526,6 +547,8 @@ function formatAnswer(text) {
   s = s.replace(/^&gt; (.+)$/gm, '<blockquote>$1</blockquote>');
   // Unordered list
   s = s.replace(/^- (.+)$/gm, '<li>$1</li>');
+  // Ordered list
+  s = s.replace(/^\d+\.\s+(.+)$/gm, '<li>$1</li>');
   // Simple table
   s = s.replace(/\|(.+)\|/g, (m) => {
     const cells = m.split('|').filter(c => c.trim());
@@ -545,6 +568,8 @@ function formatAnswer(text) {
   s = s.replace(/(<\/table>)\s*<\/p>/g, '$1');
   s = s.replace(/<p>\s*(<hr>)/g, '$1');
   s = s.replace(/<p>\s*(<div)/g, '$1');
+  s = s.replace(/<p>\s*(<details)/g, '$1');
+  s = s.replace(/(<\/details>)\s*<\/p>/g, '$1');
   return s;
 }
 
