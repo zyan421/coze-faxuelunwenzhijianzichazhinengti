@@ -186,6 +186,68 @@
   }
   .file-preview-remove:hover { color: var(--xtu-primary); }
 
+  /* ========== 设置按钮 ========== */
+  .btn-settings {
+    position: absolute; right: 16px; top: 50%; transform: translateY(-50%);
+    width: 36px; height: 36px; border-radius: 50%; border: none;
+    background: rgba(255,255,255,0.15); color: #fff; font-size: 20px;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    transition: background 0.2s;
+  }
+  .btn-settings:hover { background: rgba(255,255,255,0.3); }
+
+  /* ========== 设置弹窗 ========== */
+  .modal-overlay {
+    display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.5); z-index: 1000;
+    align-items: center; justify-content: center;
+  }
+  .modal-overlay.visible { display: flex; }
+  .modal {
+    background: #fff; border-radius: 16px; padding: 32px;
+    width: 90%; max-width: 520px; box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    animation: fadeIn 0.25s ease;
+  }
+  .modal h2 { margin: 0 0 6px; font-size: 22px; color: var(--xtu-primary); }
+  .modal .modal-desc { font-size: 15px; color: var(--xtu-text-hint); margin-bottom: 20px; line-height: 1.6; }
+  .modal label { display: block; font-size: 15px; font-weight: 600; color: var(--xtu-text); margin-bottom: 6px; margin-top: 14px; }
+  .modal label .hint { font-weight: 400; color: var(--xtu-text-hint); font-size: 13px; }
+  .modal input[type="text"], .modal input[type="password"] {
+    width: 100%; padding: 10px 14px; font-size: 16px; border: 2px solid var(--xtu-border);
+    border-radius: 8px; outline: none; transition: border-color 0.2s; box-sizing: border-box;
+  }
+  .modal input:focus { border-color: var(--xtu-primary-light); }
+  .modal .preset-btns { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+  .modal .preset-btn {
+    padding: 6px 14px; border-radius: 20px; border: 1.5px solid var(--xtu-border);
+    background: #fff; color: var(--xtu-text); font-size: 14px; cursor: pointer;
+    transition: all 0.2s;
+  }
+  .modal .preset-btn:hover { border-color: var(--xtu-primary); color: var(--xtu-primary); }
+  .modal .preset-btn.active { border-color: var(--xtu-primary); background: var(--xtu-primary-pale); color: var(--xtu-primary); font-weight: 600; }
+  .modal .modal-actions { display: flex; gap: 12px; margin-top: 24px; justify-content: flex-end; }
+  .modal .btn-cancel {
+    padding: 10px 24px; border-radius: 8px; border: 1.5px solid var(--xtu-border);
+    background: #fff; color: var(--xtu-text); font-size: 16px; cursor: pointer;
+  }
+  .modal .btn-save {
+    padding: 10px 24px; border-radius: 8px; border: none;
+    background: var(--xtu-primary); color: #fff; font-size: 16px; cursor: pointer;
+    font-weight: 600; transition: background 0.2s;
+  }
+  .modal .btn-save:hover { background: var(--xtu-primary-light); }
+  .modal .btn-save:disabled { opacity: 0.5; cursor: not-allowed; }
+  .modal .status-line { margin-top: 10px; font-size: 14px; color: var(--xtu-text-hint); }
+  .modal .status-line.ok { color: var(--green); }
+  .modal .status-line.err { color: var(--xtu-primary); }
+  .modal .key-row { display: flex; gap: 8px; }
+  .modal .key-row input { flex: 1; }
+  .modal .toggle-vis {
+    width: 42px; height: 42px; border: 2px solid var(--xtu-border); border-radius: 8px;
+    background: #fff; font-size: 18px; cursor: pointer; display: flex; align-items: center;
+    justify-content: center; flex-shrink: 0;
+  }
+
   @media (max-width: 640px) {
     .main-container { padding: 16px 12px 0; }
     .welcome-title { font-size: 24px; } .welcome-slogan { font-size: 16px; }
@@ -205,6 +267,7 @@
     <div class="topbar-subtitle-en">Legal Thesis Quality Inspection System</div>
   </div>
   <span class="topbar-right">湘潭大学法学学部</span>
+  <button class="btn-settings" id="btnSettings" type="button" title="模型设置">⚙</button>
 </div>
 
 <div class="main-container">
@@ -218,6 +281,36 @@
       <svg viewBox="0 0 24 24"><path d="M17 3a2.85 2.85 0 114 4L7.5 20.5 2 22l1.5-5.5Z" stroke-linecap="round" stroke-linejoin="round"/></svg>
     </div>
   </div>
+
+  <!-- 模型设置弹窗 -->
+  <div class="modal-overlay" id="settingsModal">
+    <div class="modal">
+      <h2>⚙ 模型设置</h2>
+      <p class="modal-desc">使用您自己的大模型 API，按实际消耗计费。<br>智能体内核与工具链免费提供，模型 tokens 消费由您掌控。</p>
+      <label>模型名称 <span class="hint">（如 deepseek-chat）</span></label>
+      <div class="preset-btns" id="presetBtns">
+        <button class="preset-btn" data-model="deepseek-chat" data-url="https://api.deepseek.com/v1">DeepSeek</button>
+        <button class="preset-btn" data-model="qwen-plus" data-url="https://dashscope.aliyuncs.com/compatible-mode/v1">通义千问</button>
+        <button class="preset-btn" data-model="glm-4-flash" data-url="https://open.bigmodel.cn/api/paas/v4">智谱GLM</button>
+        <button class="preset-btn" data-model="doubao-1-5-pro-32k-250115" data-url="">豆包</button>
+        <button class="preset-btn" data-model="kimi-k2-5-260127" data-url="">Kimi</button>
+      </div>
+      <input type="text" id="inputModel" placeholder="deepseek-chat" autocomplete="off">
+      <label>API Base URL <span class="hint">（OpenAI 兼容格式）</span></label>
+      <input type="text" id="inputBaseUrl" placeholder="https://api.deepseek.com/v1" autocomplete="off">
+      <label>API Key</label>
+      <div class="key-row">
+        <input type="password" id="inputApiKey" placeholder="sk-xxxxxxxx" autocomplete="off">
+        <button class="toggle-vis" id="toggleKeyVis" type="button">👁</button>
+      </div>
+      <div class="status-line" id="settingsStatus"></div>
+      <div class="modal-actions">
+        <button class="btn-cancel" id="btnCancelSettings">取消</button>
+        <button class="btn-save" id="btnSaveSettings">保存设置</button>
+      </div>
+    </div>
+  </div>
+
   <div class="chat-area" id="chatArea"></div>
   <div class="input-section">
     <div class="input-hint">
@@ -257,6 +350,83 @@
   function toolLabel(name) {
     return TOOL_LABELS[name] || ('🔧 ' + name);
   }
+
+  /* ===== 设置面板逻辑 ===== */
+  var settingsModal = document.getElementById('settingsModal');
+  var btnSettings = document.getElementById('btnSettings');
+  var btnCancel = document.getElementById('btnCancelSettings');
+  var btnSave = document.getElementById('btnSaveSettings');
+  var inputModel = document.getElementById('inputModel');
+  var inputBaseUrl = document.getElementById('inputBaseUrl');
+  var inputApiKey = document.getElementById('inputApiKey');
+  var toggleKeyVis = document.getElementById('toggleKeyVis');
+  var settingsStatus = document.getElementById('settingsStatus');
+  var presetBtns = document.querySelectorAll('.preset-btn');
+
+  function openSettings() { settingsModal.classList.add('visible'); loadCurrentConfig(); }
+  function closeSettings() { settingsModal.classList.remove('visible'); settingsStatus.textContent = ''; }
+  btnSettings.addEventListener('click', openSettings);
+  btnCancel.addEventListener('click', closeSettings);
+  settingsModal.addEventListener('click', function(e) { if (e.target === settingsModal) closeSettings(); });
+
+  toggleKeyVis.addEventListener('click', function() {
+    inputApiKey.type = inputApiKey.type === 'password' ? 'text' : 'password';
+  });
+
+  presetBtns.forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      presetBtns.forEach(function(b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      inputModel.value = btn.dataset.model;
+      if (btn.dataset.url) inputBaseUrl.value = btn.dataset.url;
+    });
+  });
+
+  function loadCurrentConfig() {
+    fetch('/api/model-config').then(function(r) { return r.json(); }).then(function(data) {
+      if (data.config && data.config.custom_model) {
+        var cm = data.config.custom_model;
+        inputModel.value = cm.model || '';
+        inputBaseUrl.value = cm.base_url || '';
+        inputApiKey.value = cm.api_key ? '••••••••' : '';
+        settingsStatus.textContent = '当前模型: ' + (cm.model || '平台默认');
+        settingsStatus.className = 'status-line ok';
+        // highlight matching preset
+        presetBtns.forEach(function(b) { b.classList.toggle('active', b.dataset.model === cm.model); });
+      } else {
+        inputModel.value = ''; inputBaseUrl.value = ''; inputApiKey.value = '';
+        settingsStatus.textContent = '当前使用平台默认模型';
+        settingsStatus.className = 'status-line';
+      }
+    }).catch(function() {});
+  }
+
+  btnSave.addEventListener('click', function() {
+    var model = inputModel.value.trim();
+    var base_url = inputBaseUrl.value.trim();
+    var api_key = inputApiKey.value.trim();
+    if (!model) { settingsStatus.textContent = '请填写模型名称'; settingsStatus.className = 'status-line err'; return; }
+    if (api_key === '••••••••') api_key = ''; // keep existing if not changed
+    settingsStatus.textContent = '保存中...'; settingsStatus.className = 'status-line';
+    btnSave.disabled = true;
+    fetch('/api/model-config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: model, base_url: base_url, api_key: api_key })
+    }).then(function(r) { return r.json(); }).then(function(data) {
+      if (data.success) {
+        settingsStatus.textContent = '✅ 保存成功！模型: ' + model;
+        settingsStatus.className = 'status-line ok';
+        setTimeout(closeSettings, 1200);
+      } else {
+        settingsStatus.textContent = '❌ 保存失败: ' + (data.error || '未知错误');
+        settingsStatus.className = 'status-line err';
+      }
+    }).catch(function(e) {
+      settingsStatus.textContent = '❌ 网络错误';
+      settingsStatus.className = 'status-line err';
+    }).finally(function() { btnSave.disabled = false; });
+  });
 
   /* ===== DOM ===== */
   var chatArea = document.getElementById('chatArea');

@@ -1,6 +1,7 @@
 import argparse
 import asyncio
 import json
+import os
 import threading
 import traceback
 import logging
@@ -278,6 +279,96 @@ async def upload_file(file: UploadFile = FastAPIFile(...)):
         "format": ext.lstrip('.'),
         "size": os.path.getsize(save_path)
     })
+
+# ---------------------------------------------------------------------------
+# 模型配置 API（BYOK: Bring Your Own Key）
+# ---------------------------------------------------------------------------
+@app.get("/api/model-config")
+async def get_model_config():
+    """获取当前模型配置（API Key 脱敏）"""
+    workspace = os.getenv("COZE_WORKSPACE_PATH", "/workspace/projects")
+    config_path = os.path.join(workspace, "config", "agent_llm_config.json")
+    try:
+        with open(config_path, "r", encoding="utf-8") as f:
+            cfg = json.load(f)
+        custom = cfg.get("custom_model", {})
+        raw_key = custom.get("api_key", "")
+        if raw_key and len(raw_key) > 8:
+            masked = raw_key[:4] + "*" * (len(raw_key) - 8) + raw_key[-4:]
+        else:
+            masked = "***" if raw_key else ""
+        return JSONResponse({
+            "success": True,
+            "config": {
+                "model": cfg["config"]["model"],
+                "custom_model": {
+                    "model": cfg["config"]["model"],
+                    "base_url": custom.get("base_url", ""),
+                    "api_key": masked,
+                }
+            },
+            "has_api_key": bool(raw_key),
+            "is_custom": bool(raw_key),
+        })
+    except Exception as e:
+        return JSONResponse({"success": False, "error": str(e)}, status_code=500)
+
+@app.post("/api/model-config")
+async def save_model_config(request: Request):
+    """保存用户自定义模型配置"""
+    workspace = os.getenv("COZE_WORKSPACE_PATH", "/workspace/projects")
+    config_path = os.path.join(workspace, "config", "agent_llm_config.json")
+    try:
+        body = await request.json()
+        model = body.get("model", "").strip()
+        api_key = body.get("api_key", "").strip()
+        base_url = body.get("base_url", "").strip()
+
+        if not model:
+            return JSONResponse({"success": False, "error": "模型名称不能为空"}, status_code=400)
+
+        # 读取现有配置
+        with open(config_path, "r", encoding="utf-8") as f:
+            cfg = json.load(f)
+
+        # 更新配置
+        cfg["config"]["model"] = model
+        if api_key and api_key != "••••••••":
+            # 用户提供了自定义 API Key → BYOK 模式
+            cfg["custom_model"] = {
+                "api_key": api_key,
+                "base_url": base_url.rstrip("/")
+            }
+        elif not api_key and not cfg.get("custom_model", {}).get("api_key"):
+            # 无 API Key → 使用平台默认
+            if "custom_model" in cfg:
+                del cfg["custom_model"]["api_key"]
+                del cfg["custom_model"]["base_url"]
+
+        # 写入配置
+        with open(config_path, "w", encoding="utf-8") as f:
+            json.dump(cfg, f, ensure_ascii=False, indent=2)
+
+        # 清除 checkpoint（避免旧 session 的 tool_call_id 冲突）
+        try:
+            import psycopg
+            db_url = f"postgresql://{os.getenv('PGUSER')}:{os.getenv('PGPASSWORD')}@{os.getenv('PGHOST')}:{os.getenv('PGPORT')}/{os.getenv('PGDATABASE')}"
+            conn = psycopg.connect(db_url, autocommit=True, connect_timeout=5)
+            cur = conn.cursor()
+            for table_name in ["checkpoints", "checkpoint_writes", "checkpoint_blobs"]:
+                try:
+                    cur.execute(f"DELETE FROM memory.{table_name}")
+                except:
+                    pass
+            conn.close()
+        except:
+            pass
+
+        logger.info(f"Model config updated: model={model}, base_url={base_url}, byok={bool(api_key)}")
+        return JSONResponse({"success": True, "model": model, "base_url": base_url})
+    except Exception as e:
+        logger.error(f"Failed to save model config: {e}")
+        return JSONResponse({"success": False, "error": str(e)}, status_code=500)
 
 # OpenAI 兼容接口处理器
 openai_handler = OpenAIChatHandler(service)

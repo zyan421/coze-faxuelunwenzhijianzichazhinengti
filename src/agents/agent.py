@@ -506,12 +506,38 @@ def verify_fact(query: str) -> str:
     try:
         import coze_coding_dev_sdk as ccds  # type: ignore[import]
         client = ccds.SearchClient()  # type: ignore[attr-defined]
-        results = client.web_search(query, count=5)
+        response = client.web_search(query, count=5)  # type: ignore[attr-defined]
         snippets = []
-        for r in results.get("results", []):
-            snippets.append(
-                f"- [{r.get('title', '')}]({r.get('url', '')}): {r.get('snippet', '')[:200]}"
-            )
+        items: list = []
+        if isinstance(response, dict):
+            items = response.get("results", [])
+        elif isinstance(response, (list, tuple)):
+            items = list(response)
+        else:
+            # SearchResponse or any object - use getattr with fallback
+            try:
+                raw = getattr(response, "results", None)  # type: ignore[attr-defined]
+                if raw is not None:
+                    items = list(raw)
+            except Exception:
+                pass
+            if not items:
+                try:
+                    raw = getattr(response, "data", None)  # type: ignore[attr-defined]
+                    if raw is not None:
+                        items = list(raw)
+                except Exception:
+                    pass
+        for r in items:
+            if isinstance(r, dict):
+                title = r.get("title", "")
+                url = r.get("url", "")
+                snippet = r.get("snippet", "")[:200]
+            else:
+                title = getattr(r, "title", "")
+                url = getattr(r, "url", "")
+                snippet = str(getattr(r, "snippet", ""))[:200]
+            snippets.append(f"- [{title}]({url}): {snippet}")
         return json.dumps({
             "query": query,
             "verified": len(snippets) > 0,
@@ -925,8 +951,10 @@ def build_agent(ctx=None):
     with open(config_path, "r", encoding="utf-8") as f:
         cfg = json.load(f)
 
-    api_key = os.getenv("COZE_WORKLOAD_IDENTITY_API_KEY")
-    base_url = os.getenv("COZE_INTEGRATION_MODEL_BASE_URL")
+    # 优先使用用户自定义模型配置（BYOK: Bring Your Own Key）
+    custom = cfg.get("custom_model", {})
+    api_key = custom.get("api_key") or os.getenv("COZE_WORKLOAD_IDENTITY_API_KEY")
+    base_url = custom.get("base_url") or os.getenv("COZE_INTEGRATION_MODEL_BASE_URL")
 
     thinking_cfg = cfg["config"].get("thinking", "disabled")
 
