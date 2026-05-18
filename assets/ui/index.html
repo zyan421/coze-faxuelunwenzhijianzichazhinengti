@@ -34,6 +34,9 @@ body{font-family:'Noto Serif SC','PingFang SC','Microsoft YaHei',serif;backgroun
 .msg.agent .msg-avatar{background:#9F191E;color:#fff}
 .msg.user .msg-avatar{background:#B8860B;color:#fff}
 .msg-bubble{padding:12px 16px;border-radius:12px;font-size:15px;line-height:1.8;word-break:break-word}
+.msg-wrapper{display:flex;flex-direction:column;max-width:100%}
+.msg-time{font-size:11px;color:#aaa;margin-top:2px;padding-left:4px}
+.msg.user .msg-time{color:#ccc;text-align:right;padding-right:4px}
 .msg.agent .msg-bubble{background:#fff;border:1px solid #e8e4dd;box-shadow:0 1px 3px rgba(0,0,0,.05)}
 .msg.user .msg-bubble{background:#9F191E;color:#fff}
 .msg-bubble h2,.msg-bubble h3{margin:10px 0 6px;font-size:16px;color:#9F191E}
@@ -281,7 +284,8 @@ function getCurrentMessages() {
   area.querySelectorAll('.msg').forEach(el => {
     const role = el.classList.contains('user') ? 'user' : 'agent';
     const bubble = el.querySelector('.msg-bubble');
-    msgs.push({ role, html: bubble ? bubble.innerHTML : '' });
+    const timeEl = el.querySelector('.msg-time');
+    msgs.push({ role, html: bubble ? bubble.innerHTML : '', time: timeEl ? timeEl.dataset.time : Date.now() });
   });
   return msgs;
 }
@@ -314,7 +318,9 @@ function loadConv(id) {
     const div = document.createElement('div');
     div.className = 'msg ' + m.role;
     const label = m.role === 'user' ? '用户' : 'Agent';
-    div.innerHTML = `<div class="msg-avatar">${label}</div><div class="msg-bubble">${m.html}</div>`;
+    const t = m.time ? new Date(m.time) : new Date();
+    const tStr = `${t.getHours().toString().padStart(2,'0')}:${t.getMinutes().toString().padStart(2,'0')}:${t.getSeconds().toString().padStart(2,'0')}`;
+    div.innerHTML = `<div class="msg-avatar">${label}</div><div class="msg-wrapper"><div class="msg-bubble">${m.html}</div><div class="msg-time">${tStr}</div></div>`;
     area.appendChild(div);
   });
   area.scrollTop = area.scrollHeight;
@@ -463,13 +469,25 @@ function addMsg(role, html) {
   const div = document.createElement('div');
   div.className = 'msg ' + role;
   const avatarLabel = role === 'user' ? '用户' : 'Agent';
-  div.innerHTML = `<div class="msg-avatar">${avatarLabel}</div><div class="msg-bubble">${html}</div>`;
+  const timeStr = new Date().toLocaleTimeString('zh-CN', {hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  div.innerHTML = `<div class="msg-avatar">${avatarLabel}</div><div class="msg-wrapper"><div class="msg-bubble"><div class="answer-content">${html}</div></div><div class="msg-time">${timeStr}</div></div>`;
   document.getElementById('chatArea').appendChild(div);
   div.scrollIntoView({behavior:'smooth'});
   return div.querySelector('.msg-bubble');
 }
 
-function appendToBubble(bubble, html) { bubble.innerHTML += html; }
+function appendToBubble(bubble, html) {
+  const ac = bubble.querySelector('.answer-content');
+  if (ac) ac.innerHTML += html;
+  else bubble.innerHTML += html;
+}
+
+function getAnswerEl(bubble) { return bubble.querySelector('.answer-content'); }
+function setAnswerText(bubble, html) {
+  const ac = bubble.querySelector('.answer-content');
+  if (ac) ac.innerHTML = html;
+  else bubble.innerHTML = html;
+}
 
 // ===== FORMAT ANSWER =====
 function formatAnswer(text) {
@@ -743,7 +761,9 @@ async function startStream(query, bubble) {
         const errJson = JSON.parse(errText);
         errMsg = errJson.detail || errJson.error || errMsg;
       } catch {}
-      bubble.innerHTML = `<div style="color:#e53935">❌ 请求失败: ${errMsg}</div><div style="color:#888;font-size:13px;margin-top:6px">请检查模型设置中的 API Key 是否正确，模型名称是否存在。</div>`;
+      let ac = bubble.querySelector('.answer-content');
+      if (!ac) { ac = document.createElement('div'); ac.className = 'answer-content'; bubble.appendChild(ac); }
+      ac.innerHTML = `<div style="color:#e53935">❌ 请求失败: ${errMsg}</div><div style="color:#888;font-size:13px;margin-top:6px">请检查模型设置中的 API Key 是否正确，模型名称是否存在。</div>`;
       setStatus('error', '请求失败');
       return;
     }
@@ -809,15 +829,20 @@ async function startStream(query, bubble) {
           const t = c.answer || (typeof c === 'string' ? c : '') || data.answer || '';
           if (typeof t === 'string' && t) {
             if (firstAnswer) {
-              const pp = bubble.querySelector('#progressPanel');
-              if (pp) { bubble.innerHTML = ''; bubble.appendChild(pp); }
-              else { bubble.innerHTML = ''; }
+              // Only clear answer-content, not the entire bubble (progressPanel survives)
+              const ac = bubble.querySelector('.answer-content');
+              if (ac) ac.innerHTML = '';
               firstAnswer = false;
             }
             fullAnswer += t;
-            const ppEl = bubble.querySelector('#progressPanel');
-            bubble.innerHTML = formatAnswer(fullAnswer);
-            if (ppEl) bubble.appendChild(ppEl);
+            // Update only answer-content div, never touch bubble.innerHTML directly
+            let ac = bubble.querySelector('.answer-content');
+            if (!ac) {
+              ac = document.createElement('div');
+              ac.className = 'answer-content';
+              bubble.appendChild(ac);
+            }
+            ac.innerHTML = formatAnswer(fullAnswer);
             bubble.scrollIntoView({behavior:'smooth'});
             // Update status with preview of answer
             const preview = t.replace(/\n/g, ' ').trim().substring(0, 25);
@@ -855,9 +880,13 @@ async function startStream(query, bubble) {
           stopHeartbeat();
           finishProgress();
           if (fullAnswer) {
-            const ppEl = bubble.querySelector('#progressPanel');
-            bubble.innerHTML = formatAnswer(fullAnswer);
-            if (ppEl) bubble.appendChild(ppEl);
+            let ac = bubble.querySelector('.answer-content');
+            if (!ac) {
+              ac = document.createElement('div');
+              ac.className = 'answer-content';
+              bubble.appendChild(ac);
+            }
+            ac.innerHTML = formatAnswer(fullAnswer);
           }
           setStatus('ready', '审查完成');
         } else if (type === 'error') {
@@ -874,7 +903,9 @@ async function startStream(query, bubble) {
 
     // If stream ended without message_end and no answer, something went wrong
     if (!fullAnswer && !hasProgress) {
-      bubble.innerHTML = `<div style="color:#e53935">❌ 智能体未返回任何结果</div>
+      let ac = bubble.querySelector('.answer-content');
+      if (!ac) { ac = document.createElement('div'); ac.className = 'answer-content'; bubble.appendChild(ac); }
+      ac.innerHTML = `<div style="color:#e53935">❌ 智能体未返回任何结果</div>
         <div style="color:#888;font-size:13px;margin-top:6px">
         可能的原因：<br>
         1. API Key 无效或已过期（401 认证失败）<br>
@@ -889,7 +920,9 @@ async function startStream(query, bubble) {
     if (!fullAnswer) {
       const ti = bubble.querySelector('.typing-indicator');
       if (ti) ti.remove();
-      bubble.innerHTML = `<div style="color:#e53935">❌ 连接中断: ${e.message}</div>
+      let ac = bubble.querySelector('.answer-content');
+      if (!ac) { ac = document.createElement('div'); ac.className = 'answer-content'; bubble.appendChild(ac); }
+      ac.innerHTML = `<div style="color:#e53935">❌ 连接中断: ${e.message}</div>
         <div style="color:#888;font-size:13px;margin-top:6px">
         智能体可能仍在后台工作。如果长时间无响应，请检查：<br>
         1. 点击右上角「模型设置」确认 API Key 是否有效<br>
