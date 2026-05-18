@@ -23,7 +23,12 @@ from langchain.agents import create_agent
 from langchain.agents.middleware import wrap_tool_call
 from langchain_core.messages import AnyMessage, ToolMessage
 from langchain_openai import ChatOpenAI
+from langgraph.graph import MessagesState
+from langgraph.graph.message import add_messages
+from typing import Annotated
 from coze_coding_utils.runtime_ctx.context import default_headers
+from coze_coding_utils.log.write_log import request_context
+from coze_coding_utils.runtime_ctx.context import new_context
 from storage.memory.memory_saver import get_memory_saver
 
 # ---------------------------------------------------------------------------
@@ -40,6 +45,20 @@ ENUM_CATEGORY = {
 }
 ENUM_SEVERITY = {"fatal", "major", "minor"}
 ENUM_SCOPE = {"document", "chapter", "paragraph", "sentence", "span"}
+
+# ---------------------------------------------------------------------------
+# 滑动窗口短期记忆
+# ---------------------------------------------------------------------------
+MAX_MESSAGES = 40  # 保留最近 20 轮对话 (40 条消息)
+
+
+def _windowed_messages(old, new):
+    """滑动窗口: 只保留最近 MAX_MESSAGES 条消息"""
+    return add_messages(old, new)[-MAX_MESSAGES:]  # type: ignore
+
+
+class AgentState(MessagesState):
+    messages: Annotated[list[AnyMessage], _windowed_messages]
 ID_PATTERN = re.compile(r"^(thesis|citation)-([a-z-]+)-\d{3}$")
 GROUP_ID_PATTERN = re.compile(r"^g-\d{3,}$")
 
@@ -875,14 +894,21 @@ def build_agent(ctx=None):
     api_key = os.getenv("COZE_WORKLOAD_IDENTITY_API_KEY")
     base_url = os.getenv("COZE_INTEGRATION_MODEL_BASE_URL")
 
+    thinking_cfg = cfg["config"].get("thinking", "disabled")
+
     llm = ChatOpenAI(
         model=cfg["config"]["model"],
         api_key=api_key,
         base_url=base_url,
         temperature=cfg["config"]["temperature"],
+        max_completion_tokens=cfg["config"].get("max_completion_tokens", 32768),
         streaming=True,
         timeout=cfg["config"]["timeout"],
-        extra_body={},
+        extra_body={
+            "thinking": {
+                "type": "enabled" if thinking_cfg == "enabled" else "disabled"
+            }
+        },
         default_headers=default_headers(ctx) if ctx else {}
     )
 
@@ -900,4 +926,5 @@ def build_agent(ctx=None):
         tools=tools,
         middleware=[handle_tool_errors],
         checkpointer=get_memory_saver(),
+        state_schema=AgentState,
     )
