@@ -24,7 +24,7 @@ from langchain.agents.middleware import wrap_tool_call
 from langchain_core.messages import AnyMessage, ToolMessage
 from langchain_openai import ChatOpenAI
 from langgraph.graph import MessagesState
-from langgraph.graph.message import add_messages
+from langgraph.graph.message import add_messages  # noqa: F401 - kept for compatibility
 from typing import Annotated
 from coze_coding_utils.runtime_ctx.context import default_headers
 from coze_coding_utils.log.write_log import request_context
@@ -47,18 +47,15 @@ ENUM_SEVERITY = {"fatal", "major", "minor"}
 ENUM_SCOPE = {"document", "chapter", "paragraph", "sentence", "span"}
 
 # ---------------------------------------------------------------------------
-# 滑动窗口短期记忆
+# 短期记忆：直接使用 MessagesState 的 add_messages reducer，不做窗口截断。
+# 原因：kimi 模型 API 严格要求每个 ToolMessage 的 tool_call_id 都能在历史中
+# 找到对应的 AIMessage。任何截断都可能导致 400 tool_call_id not found。
+# 对于论文审查这种单次任务型对话，不需要窗口截断。
 # ---------------------------------------------------------------------------
-MAX_MESSAGES = 40  # 保留最近 20 轮对话 (40 条消息)
-
-
-def _windowed_messages(old, new):
-    """滑动窗口: 只保留最近 MAX_MESSAGES 条消息"""
-    return add_messages(old, new)[-MAX_MESSAGES:]  # type: ignore
 
 
 class AgentState(MessagesState):
-    messages: Annotated[list[AnyMessage], _windowed_messages]
+    messages: Annotated[list[AnyMessage], add_messages]
 ID_PATTERN = re.compile(r"^(thesis|citation)-([a-z-]+)-\d{3}$")
 GROUP_ID_PATTERN = re.compile(r"^g-\d{3,}$")
 
@@ -509,7 +506,7 @@ def verify_fact(query: str) -> str:
     try:
         import coze_coding_dev_sdk as ccds  # type: ignore[import]
         client = ccds.SearchClient()  # type: ignore[attr-defined]
-        results = client.web_search(query, top_n=5)
+        results = client.web_search(query, count=5)
         snippets = []
         for r in results.get("results", []):
             snippets.append(
@@ -533,7 +530,8 @@ def verify_fact(query: str) -> str:
 def generate_annotated_docx(docx_path: str, issues_json: str) -> str:
     """
     生成带批注的 .annotated.docx。
-    docx_path 为原始 docx 路径（支持本地路径、URL、Coze file_id），issues_json 为严格 UTR schema 的问题清单 JSON 字符串。
+    docx_path 必须使用 read_paper_file 返回的 local_docx_path 字段。
+    issues_json 必须是 normalize_issues_for_annotation 返回的完整 JSON 字符串，禁止自行拼接或截断。
     注入前先校验 schema，成功后回读校验。
     """
     try:
@@ -576,8 +574,44 @@ def generate_annotated_docx(docx_path: str, issues_json: str) -> str:
 
         docx_path = resolved_path
 
-        # 解析并校验 issues_json
-        issues_raw = json.loads(issues_json) if isinstance(issues_json, str) else issues_json
+        # 解析并校验 issues_json（容错：LLM 生成的 JSON 可能含截断/转义问题）
+        raw_str = issues_json if isinstance(issues_json, str) else json.dumps(issues_json, ensure_ascii=False)
+        # 尝试直接解析
+        try:
+            issues_raw = json.loads(raw_str)
+        except json.JSONDecodeError:
+            # 尝试修复常见问题：截断的字符串值、多余逗号
+            import re
+            fixed = raw_str
+            # 修复截断的字符串值：找最后一个未闭合的引号，截断该键值对并闭合
+            # 策略：从末尾向回找，找到最后一个完整的 }, ] 或 , 然后截断
+            for truncate_marker in ['],', '},', '",', '",', 'null,', 'true,', 'false,']:
+                idx = fixed.rfind(truncate_marker)
+                if idx > 0:
+                    fixed = fixed[:idx + len(truncate_marker)]
+                    break
+            # 移除尾部不完整的键值对
+            fixed = re.sub(r',?\s*"[^"]*"\s*:\s*"[^"]*$', '', fixed)
+            fixed = re.sub(r',?\s*"[^"]*"\s*:\s*\S+$', '', fixed)
+            # 补齐缺失的括号
+            open_b = fixed.count('{') + fixed.count('[')
+            close_b = fixed.count('}') + fixed.count(']')
+            for _ in range(open_b - close_b):
+                fixed += '}' if fixed.rstrip().endswith(']') or fixed.rstrip().endswith('}') else ']'
+            try:
+                issues_raw = json.loads(fixed)
+            except json.JSONDecodeError as je2:
+                return json.dumps({
+                    "success": False,
+                    "error": f"issues_json 解析失败: {str(je2)}",
+                    "hint": "请确保传入的 issues_json 是合法 JSON。可重新调用 normalize_issues_for_annotation，确保传入完整结果",
+                    "json_error_pos": f"line {je2.lineno} col {je2.colno}",
+                    "raw_preview": raw_str[:200],
+                    "failed_function": "generate_annotated_docx",
+                    "failed_issue_id": None,
+                    "traceback": None,
+                    "stderr": None
+                }, ensure_ascii=False)
         if isinstance(issues_raw, list):
             issues_data = {"schema_version": "1.0", "issues": issues_raw}
         elif isinstance(issues_raw, dict) and "issues" in issues_raw:

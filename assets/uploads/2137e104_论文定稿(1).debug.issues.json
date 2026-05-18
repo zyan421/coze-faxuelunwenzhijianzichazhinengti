@@ -1,0 +1,303 @@
+{
+  "schema_version": "1.0",
+  "issues": [
+    {
+      "id": "thesis-structure-001",
+      "source": "thesis",
+      "category": "structure",
+      "severity": "major",
+      "scope": "chapter",
+      "locator": {
+        "chapter": "第四章",
+        "paragraph_index": 1
+      },
+      "excerpt": "",
+      "anchor_text": "四、 物业服务合同纠纷预防机制的完善对策",
+      "problem": "第四章作为论文核心对策章节，篇幅仅约2100字，占比8.2%，严重偏少，与论文主题'预防机制的完善'不匹配，建议扩充至3500-4000字（15%左右）",
+      "suggestion": [
+        "增加可操作性制度设计",
+        "补充程序规则和文书模板",
+        "增加成本效益分析",
+        "细化各方权责配置"
+      ],
+      "group_id": "g-001"
+    },
+    {
+      "id": "thesis-argumentation-002",
+      "source": "thesis",
+      "category": "argumentation",
+      "severity": "major",
+      "scope": "paragraph",
+      "locator": {
+        "chapter": "绪论",
+        "paragraph_index": 3
+      },
+      "excerpt": "2021年到2025年，全国法院共审结了物业纠纷案件439万余件",
+      "anchor_text": "2021年到2025年，全国法院共审结了物业纠纷案件439万余件",
+      "problem": "数据统计口径不一致：439万件为五年审结总数（年均87.8万件），但后文称2025年单年受理仅29.47万件，差距悬殊，且'审结'与'受理'概念混用",
+      "suggestion": [
+        "核实439万件数据来源和统计口径",
+        "明确区分'审结'与'受理'数据",
+        "对数据差异作出解释说明"
+      ],
+      "group_id": "g-002"
+    },
+    {
+      "id": "thesis-literature-review-003",
+      "source": "thesis",
+      "category": "literature-review",
+      "severity": "major",
+      "scope": "chapter",
+      "locator": {
+        "chapter": "（二）国内外研究综述",
+        "paragraph_index": 1
+      },
+      "excerpt": "",
+      "anchor_text": "（二）国内外研究综述",
+      "problem": "标题为'国内外研究综述'，但内容仅涉及国内研究，完全缺少国外研究综述，与标题不符，研究视野局限",
+      "suggestion": [
+        "补充德国、日本等大陆法系国家物业服务合同制度",
+        "增加英美法系物业管理与业主自治制度",
+        "补充域外纠纷预防与替代性争议解决机制",
+        "或修改标题为'国内研究综述'"
+      ],
+      "group_id": "g-003"
+    },
+    {
+      "id": "thesis-language-004",
+      "source": "thesis",
+      "category": "language",
+      "severity": "major",
+      "scope": "paragraph",
+      "locator": {
+        "chapter": "绪论",
+        "paragraph_index": 3
+      },
+      "excerpt": "仅以2025年，全国法院受理的物业服务合同纠纷一审案件",
+      "anchor_text": "仅以2025年",
+      "problem": "语病：'仅以2025年'表述不通顺，应为'仅2025年一年'或'仅2025年'",
+      "suggestion": [
+        "修改为'仅2025年一年'",
+        "或修改为'仅2025年'"
+      ],
+      "group_id": "g-004"
+    },
+    {
+      "id": "thesis-language-005",
+      "source": "thesis",
+      "category": "language",
+      "severity": "major",
+      "scope": "paragraph",
+      "locator": {
+        "chapter": "绪论",
+        "paragraph_index": 2
+      },
+      "excerpt": "成了影响社区秩序",
+      "anchor_text": "成了影响社区秩序",
+      "problem": "语病：'了'字使用不当，应改为'成为'",
+      "suggestion": [
+        "修改为'成为影响社区秩序'"
+      ],
+      "group_id": "g-005"
+    },
+    {
+      "id": "thesis-language-006",
+      "source": "thesis",
+      "category": "language",
+      "severity": "major",
+      "scope": "paragraph",
+      "locator": {
+        "chapter": "绪论",
+        "paragraph_index": 4
+      },
+      "excerpt": "掉到了69.1分",
+      "anchor_text": "掉到了69.1分",
+      "problem": "口语化表达：'掉'字过于口语化，学术论文应使用'降至'或'下降为'",
+      "suggestion": [
+        "修改为'降至69.1分'",
+        "或修改为'下降为69.1分'"
+      ],
+      "group_id": "g-006"
+    },
+    {
+      "id": "thesis-language-007",
+      "source": "thesis",
+      "category": "language",
+      "severity": "major",
+      "scope": "paragraph",
+      "locator": {
+        "chapter": "绪论",
+        "paragraph_index": 4
+      },
+      "excerpt": "降到至71%",
+      "anchor_text": "降到至71%",
+      "problem": "语病：'降到至'语义重复，应为'降至'或'下降到'",
+      "suggestion": [
+        "修改为'降至71%'",
+        "或修改为'下降到71%'"
+      ],
+      "group_id": "g-006"
+    },
+    {
+      "id": "citation-citation-format-008",
+      "source": "citation",
+      "category": "citation-format",
+      "severity": "major",
+      "scope": "paragraph",
+      "locator": {
+        "chapter": "脚注",
+        "paragraph_index": 1
+      },
+      "excerpt": "载《中国不动产法研究》2015年第2期",
+      "anchor_text": "载《中国不动产法研究》",
+      "problem": "脚注格式不统一：有的用'载《期刊名》'，有的缺'载'字，建议统一采用《法学引注手册》格式",
+      "suggestion": [
+        "统一采用《法学引注手册》格式",
+        "期刊格式：作者：《文章名》，载《期刊名》年份第X期，第XX页",
+        "网络资源格式：作者：《文章名》，载网站名，日期，访问日期"
+      ],
+      "group_id": "g-007"
+    },
+    {
+      "id": "thesis-legal-norms-009",
+      "source": "thesis",
+      "category": "legal-norms",
+      "severity": "major",
+      "scope": "paragraph",
+      "locator": {
+        "chapter": "二、物业服务合同纠纷预防机制的基础",
+        "paragraph_index": 3
+      },
+      "excerpt": "《民法典》第943条",
+      "anchor_text": "《民法典》第943条",
+      "problem": "法律条文引用不完整：首次引用重要法条时应完整引用条文内容，或在脚注中注明条文全文",
+      "suggestion": [
+        "首次引用时完整引用条文内容",
+        "或在脚注中注明《民法典》第943条全文"
+      ],
+      "group_id": "g-008"
+    },
+    {
+      "id": "thesis-policy-010",
+      "source": "thesis",
+      "category": "policy",
+      "severity": "major",
+      "scope": "paragraph",
+      "locator": {
+        "chapter": "四、（三）完善异议受理和协商调解程序",
+        "paragraph_index": 2
+      },
+      "excerpt": "7日内给出初步答复",
+      "anchor_text": "7日内给出初步答复",
+      "problem": "对策建议缺乏法律依据：'7日内给出初步答复'的期限设定缺乏法律或理论依据，建议补充论证",
+      "suggestion": [
+        "补充7日期限的法律依据或理论支撑",
+        "或参考《信访条例》等规定说明理由",
+        "增加期限设定的合理性论证"
+      ],
+      "group_id": "g-009"
+    },
+    {
+      "id": "thesis-argumentation-011",
+      "source": "thesis",
+      "category": "argumentation",
+      "severity": "major",
+      "scope": "paragraph",
+      "locator": {
+        "chapter": "四、（三）完善异议受理和协商调解程序",
+        "paragraph_index": 2
+      },
+      "excerpt": "三十天内进入协商处理",
+      "anchor_text": "三十天内进入协商处理",
+      "problem": "期限设定缺乏论证：'三十天内进入协商处理'的期限设定缺乏说明，建议补充理由",
+      "suggestion": [
+        "补充30日期限的设定依据",
+        "说明该期限的合理性",
+        "可参考其他纠纷处理期限规定"
+      ],
+      "group_id": "g-010"
+    },
+    {
+      "id": "thesis-empirical-012",
+      "source": "thesis",
+      "category": "empirical",
+      "severity": "major",
+      "scope": "paragraph",
+      "locator": {
+        "chapter": "三、（二）样本基本分布特征",
+        "paragraph_index": 1
+      },
+      "excerpt": "如图3-1所示",
+      "anchor_text": "如图3-1所示",
+      "problem": "图表缺失：文中多次引用图表（图3-1至图3-4），但实际图表内容缺失，存在'有引无图'问题",
+      "suggestion": [
+        "补充所有引用图表（图3-1至图3-4）",
+        "确保图表与正文分析紧密结合",
+        "图表需有清晰的标题、来源说明和注释"
+      ],
+      "group_id": "g-011"
+    },
+    {
+      "id": "thesis-structure-013",
+      "source": "thesis",
+      "category": "structure",
+      "severity": "major",
+      "scope": "chapter",
+      "locator": {
+        "chapter": "五、结论",
+        "paragraph_index": 1
+      },
+      "excerpt": "",
+      "anchor_text": "五、结论",
+      "problem": "结论部分过于简略：结论仅约800字，未能充分总结研究发现、理论贡献和实践价值",
+      "suggestion": [
+        "扩充结论部分至1200-1500字",
+        "分点总结主要研究发现",
+        "明确理论贡献和实践意义",
+        "详细说明研究局限和未来方向"
+      ],
+      "group_id": "g-012"
+    },
+    {
+      "id": "thesis-argumentation-014",
+      "source": "thesis",
+      "category": "argumentation",
+      "severity": "major",
+      "scope": "paragraph",
+      "locator": {
+        "chapter": "三、（四）订立阶段",
+        "paragraph_index": 1
+      },
+      "excerpt": "广东省占了32件",
+      "anchor_text": "广东省占了32件",
+      "problem": "样本代表性说明不足：样本地域分布高度集中于广东（32%），但未深入分析这种分布偏差对研究结论的影响",
+      "suggestion": [
+        "增加对样本地域集中问题的讨论",
+        "分析广东样本的特殊性",
+        "讨论结论推广至中西部地区的适用边界"
+      ],
+      "group_id": "g-013"
+    },
+    {
+      "id": "thesis-policy-015",
+      "source": "thesis",
+      "category": "policy",
+      "severity": "major",
+      "scope": "paragraph",
+      "locator": {
+        "chapter": "四、（一）明确收费标准和计费规则",
+        "paragraph_index": 1
+      },
+      "excerpt": "收费条款的清单化",
+      "anchor_text": "收费条款的清单化",
+      "problem": "对策建议可操作性不足：'收费条款清单化'等建议较为原则，缺少具体的表单设计、程序规则和文书模板",
+      "suggestion": [
+        "设计具体的收费条款清单模板",
+        "增加程序规则和操作指引",
+        "补充文书样本",
+        "增加成本效益分析"
+      ],
+      "group_id": "g-014"
+    }
+  ]
+}
