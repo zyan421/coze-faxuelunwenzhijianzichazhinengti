@@ -2,25 +2,43 @@
   "schema_version": "1.0",
   "issues": [
     {
-      "id": "thesis-argumentation-001",
+      "id": "thesis-structure-001",
       "source": "thesis",
-      "category": "argumentation",
+      "category": "structure",
       "severity": "minor",
-      "scope": "paragraph",
+      "scope": "chapter",
       "locator": {
         "chapter": "正文",
         "paragraph_index": 0
       },
-      "excerpt": "绪论占比过高，超过25%的合理上限",
-      "anchor_text": "绪论占比过高，超过25%的合理上限",
-      "problem": "绪论占比过高，超过25%的合理上限",
+      "excerpt": "",
+      "anchor_text": "**绪论篇幅过长，逻辑配比失衡**：绪论部分占全文约1/4篇幅，其中研究背景部分",
+      "problem": "**绪论篇幅过长，逻辑配比失衡**：绪论部分占全文约1/4篇幅，其中研究背景部分堆砌大量无交叉验证的统计数据，研究意义部分仅阐述理论意义未明确实践价值，与核心实证分析章节的篇幅比例不协调。anchor_text=\"这项研究把主题定在物业服务合同纠纷预防机制的完善上\"",
       "suggestion": [
         "请根据具体上下文补充修改建议"
       ],
       "group_id": "g-001"
     },
     {
-      "id": "thesis-policy-002",
+      "id": "thesis-literature-review-002",
+      "source": "thesis",
+      "category": "literature-review",
+      "severity": "minor",
+      "scope": "paragraph",
+      "locator": {
+        "chapter": "正文",
+        "paragraph_index": 0
+      },
+      "excerpt": "**国内外研究综述缺少域外研究内容**：标题明确为\"国内外研究综述\"，但全文未提及任何域外关于物业服务合同纠纷预防...",
+      "anchor_text": "**国内外研究综述缺少域外研究内容**：标题明确为\"国内外研究综述\"，但全文未提",
+      "problem": "**国内外研究综述缺少域外研究内容**：标题明确为\"国内外研究综述\"，但全文未提及任何域外关于物业服务合同纠纷预防的研究成果，仅有国内学者的观点梳理，不符合综述撰写的完整性要求。anchor_text=\"（二）国内外研究综述\"",
+      "suggestion": [
+        "请根据具体上下文补充修改建议"
+      ],
+      "group_id": "g-002"
+    },
+    {
+      "id": "thesis-policy-003",
       "source": "thesis",
       "category": "policy",
       "severity": "minor",
@@ -29,142 +47,16 @@
         "chapter": "正文",
         "paragraph_index": 0
       },
-      "excerpt": "对策建议部分（第四章）仅占21.5%，低于本科论文通常要求的25-30%",
-      "anchor_text": "对策建议部分（第四章）仅占21.5%，低于本科论文通常要求的25-30%",
-      "problem": "对策建议部分（第四章）仅占21.5%，低于本科论文通常要求的25-30%",
-      "suggestion": [
-        "请根据具体上下文补充修改建议"
-      ],
-      "group_id": "g-002"
-    },
-    {
-      "id": "thesis-argumentation-003",
-      "source": "thesis",
-      "category": "argumentation",
-      "severity": "minor",
-      "scope": "paragraph",
-      "locator": {
-        "chapter": "正文",
-        "paragraph_index": 0
-      },
-      "excerpt": "第二章理论铺垫过于单薄，与第三章之间逻辑衔接不够紧密",
-      "anchor_text": "第二章理论铺垫过于单薄，与第三章之间逻辑衔接不够紧密",
-      "problem": "第二章理论铺垫过于单薄，与第三章之间逻辑衔接不够紧密",
-      "suggestion": [
-        "请根据具体上下文补充修改建议"
-      ],
-      "group_id": "g-001"
-    },
-    {
-      "id": "thesis-argumentation-004",
-      "source": "thesis",
-      "category": "argumentation",
-      "severity": "minor",
-      "scope": "paragraph",
-      "locator": {
-        "chapter": "正文",
-        "paragraph_index": 0
-      },
-      "excerpt": "压缩绪论篇幅，将研究背景、意义合并精简",
-      "anchor_text": "压缩绪论篇幅，将研究背景、意义合并精简",
-      "problem": "压缩绪论篇幅，将研究背景、意义合并精简",
-      "suggestion": [
-        "请根据具体上下文补充修改建议"
-      ],
-      "group_id": "g-001"
-    },
-    {
-      "id": "thesis-policy-005",
-      "source": "thesis",
-      "category": "policy",
-      "severity": "minor",
-      "scope": "paragraph",
-      "locator": {
-        "chapter": "正文",
-        "paragraph_index": 0
-      },
-      "excerpt": "扩充第四章对策建议内容，增加可操作性分析",
-      "anchor_text": "扩充第四章对策建议内容，增加可操作性分析",
-      "problem": "扩充第四章对策建议内容，增加可操作性分析",
-      "suggestion": [
-        "请根据具体上下文补充修改建议"
-      ],
-      "group_id": "g-002"
-    },
-    {
-      "id": "thesis-empirical-006",
-      "source": "thesis",
-      "category": "empirical",
-      "severity": "minor",
-      "scope": "paragraph",
-      "locator": {
-        "chapter": "正文",
-        "paragraph_index": 0
-      },
-      "excerpt": "强化第二章与第三章的理论-实证衔接",
-      "anchor_text": "强化第二章与第三章的理论-实证衔接",
-      "problem": "强化第二章与第三章的理论-实证衔接",
+      "excerpt": "**结论部分创新价值总结不足**：结论仅简单重复三个阶段的问题与对策，未明确回应引言中提出的\"贯通订立、履行、争议...",
+      "anchor_text": "**结论部分创新价值总结不足**：结论仅简单重复三个阶段的问题与对策，未明确回应",
+      "problem": "**结论部分创新价值总结不足**：结论仅简单重复三个阶段的问题与对策，未明确回应引言中提出的\"贯通订立、履行、争议阶段预防机制\"的创新目标，也未说明研究对现有制度的边际贡献。anchor_text=\"100份裁判文书的分析表明，纠纷产生于三个阶段\"",
       "suggestion": [
         "请根据具体上下文补充修改建议"
       ],
       "group_id": "g-003"
     },
     {
-      "id": "thesis-argumentation-007",
-      "source": "thesis",
-      "category": "argumentation",
-      "severity": "minor",
-      "scope": "paragraph",
-      "locator": {
-        "chapter": "正文",
-        "paragraph_index": 0
-      },
-      "excerpt": "收费规则不清是订立阶段的主要问题",
-      "anchor_text": "收费规则不清是订立阶段的主要问题",
-      "problem": "收费规则不清是订立阶段的主要问题",
-      "suggestion": [
-        "请根据具体上下文补充修改建议"
-      ],
-      "group_id": "g-001"
-    },
-    {
-      "id": "thesis-argumentation-008",
-      "source": "thesis",
-      "category": "argumentation",
-      "severity": "minor",
-      "scope": "paragraph",
-      "locator": {
-        "chapter": "正文",
-        "paragraph_index": 0
-      },
-      "excerpt": "信息公开不足是履行阶段的核心隐患",
-      "anchor_text": "信息公开不足是履行阶段的核心隐患",
-      "problem": "信息公开不足是履行阶段的核心隐患",
-      "suggestion": [
-        "请根据具体上下文补充修改建议"
-      ],
-      "group_id": "g-001"
-    },
-    {
-      "id": "thesis-argumentation-009",
-      "source": "thesis",
-      "category": "argumentation",
-      "severity": "minor",
-      "scope": "paragraph",
-      "locator": {
-        "chapter": "正文",
-        "paragraph_index": 0
-      },
-      "excerpt": "异议处理程序缺失是争议显现阶段的关键缺陷",
-      "anchor_text": "异议处理程序缺失是争议显现阶段的关键缺陷",
-      "problem": "异议处理程序缺失是争议显现阶段的关键缺陷",
-      "suggestion": [
-        "请根据具体上下文补充修改建议"
-      ],
-      "group_id": "g-001"
-    },
-    {
-      "id": "thesis-empirical-010",
+      "id": "thesis-empirical-004",
       "source": "thesis",
       "category": "empirical",
       "severity": "minor",
@@ -173,214 +65,70 @@
         "chapter": "正文",
         "paragraph_index": 0
       },
-      "excerpt": "第三章对47件物业费争议案件的类型化分析不够深入，仅列举2-3个案例",
-      "anchor_text": "第三章对47件物业费争议案件的类型化分析不够深入，仅列举2-3个案例",
-      "problem": "第三章对47件物业费争议案件的类型化分析不够深入，仅列举2-3个案例",
-      "suggestion": [
-        "请根据具体上下文补充修改建议"
-      ],
-      "group_id": "g-003"
-    },
-    {
-      "id": "thesis-empirical-011",
-      "source": "thesis",
-      "category": "empirical",
-      "severity": "minor",
-      "scope": "paragraph",
-      "locator": {
-        "chapter": "正文",
-        "paragraph_index": 67
-      },
-      "excerpt": "\"广州越秀物业发展有限公司诉林锋生物业服务合同纠纷案\"被作为典型案例，但分析停留在描述层面，缺乏对裁判要旨的法理提炼",
-      "anchor_text": "广州越秀物业发展有限公司诉林锋生物业服务合同纠纷案",
-      "problem": "\"广州越秀物业发展有限公司诉林锋生物业服务合同纠纷案\"被作为典型案例，但分析停留在描述层面，缺乏对裁判要旨的法理提炼",
+      "excerpt": "**实证数据未提供交叉验证依据**：论文中多处使用2025年、2026年的司法统计数据（如439万件物业纠纷、29...",
+      "anchor_text": "**实证数据未提供交叉验证依据**：论文中多处使用2025年、2026年的司法统",
+      "problem": "**实证数据未提供交叉验证依据**：论文中多处使用2025年、2026年的司法统计数据（如439万件物业纠纷、29.47万件一审案件），但经联网核实无法确认数据来源真实性，且多个数据来源标注为2026年的报告，存在数据时效性与真实性瑕疵。anchor_text=\"2021年到2025年，全国法院共审结了物业纠纷案件439万余件\"",
       "suggestion": [
         "请根据具体上下文补充修改建议"
       ],
       "group_id": "g-004"
     },
     {
-      "id": "thesis-argumentation-012",
+      "id": "thesis-argumentation-005",
       "source": "thesis",
       "category": "argumentation",
       "severity": "minor",
       "scope": "paragraph",
       "locator": {
         "chapter": "正文",
-        "paragraph_index": 10
+        "paragraph_index": 0
       },
-      "excerpt": "部分论断缺乏充分论证，如\"纠纷并非偶发的履约分歧，而是在合同订立、履行和争议显现三个阶段累积的结果\"",
-      "anchor_text": "纠纷并非偶发的履约分歧，而是在合同订立、履行和争议显现三个阶段累积的结果",
-      "problem": "部分论断缺乏充分论证，如\"纠纷并非偶发的履约分歧，而是在合同订立、履行和争议显现三个阶段累积的结果\"",
+      "excerpt": "**样本选取代表性说明不充分**：100份裁判文书样本中广东省占32件，占比达32%，仅说明\"与当地司法公开程度有...",
+      "anchor_text": "**样本选取代表性说明不充分**：100份裁判文书样本中广东省占32件，占比达3",
+      "problem": "**样本选取代表性说明不充分**：100份裁判文书样本中广东省占32件，占比达32%，仅说明\"与当地司法公开程度有关\"，但未论证样本的地域偏差对研究结论的影响程度，也未说明样本选择的抽样标准科学性。anchor_text=\"广东省占了32件，数量上远远超过其他省份\"",
       "suggestion": [
         "请根据具体上下文补充修改建议"
       ],
       "group_id": "g-005"
     },
     {
-      "id": "thesis-literature-review-013",
+      "id": "thesis-argumentation-006",
       "source": "thesis",
-      "category": "literature-review",
+      "category": "argumentation",
       "severity": "minor",
       "scope": "paragraph",
       "locator": {
         "chapter": "正文",
-        "paragraph_index": 19
+        "paragraph_index": 0
       },
-      "excerpt": "**缺乏域外文献**：论文标题中\"国内外研究综述\"仅涉及国内研究，未涉及域外（德国、日本、美国等）物业服务合同或类...",
-      "anchor_text": "国内外研究综述",
-      "problem": "**缺乏域外文献**：论文标题中\"国内外研究综述\"仅涉及国内研究，未涉及域外（德国、日本、美国等）物业服务合同或类似制度的研究",
+      "excerpt": "**案例分析与论点的关联性不足**：在\"订立阶段规则漏洞\"部分引用的\"广州越秀物业发展有限公司诉林锋生案\"，法院最...",
+      "anchor_text": "**案例分析与论点的关联性不足**：在\"订立阶段规则漏洞\"部分引用的\"广州越秀物",
+      "problem": "**案例分析与论点的关联性不足**：在\"订立阶段规则漏洞\"部分引用的\"广州越秀物业发展有限公司诉林锋生案\"，法院最终支持了物业公司的调价请求，反而说明合同明确约定调价条件的有效性，与\"规则漏洞导致纠纷\"的论点存在逻辑矛盾。anchor_text=\"广州越秀物业发展有限公司诉林锋生物业服务合同纠纷案\"",
+      "suggestion": [
+        "请根据具体上下文补充修改建议"
+      ],
+      "group_id": "g-005"
+    },
+    {
+      "id": "thesis-legal-norms-007",
+      "source": "thesis",
+      "category": "legal-norms",
+      "severity": "minor",
+      "scope": "paragraph",
+      "locator": {
+        "chapter": "正文",
+        "paragraph_index": 0
+      },
+      "excerpt": "**对策建议的制度衔接不足**：提出的\"递进式异议受理程序\"未说明与现有《物业管理条例》中业主投诉处理机制、社区调...",
+      "anchor_text": "**对策建议的制度衔接不足**：提出的\"递进式异议受理程序\"未说明与现有《物业管",
+      "problem": "**对策建议的制度衔接不足**：提出的\"递进式异议受理程序\"未说明与现有《物业管理条例》中业主投诉处理机制、社区调解制度的衔接关系，也未明确程序设置的法律依据，可操作性不足。anchor_text=\"建立递进式的异议受理程序\"",
       "suggestion": [
         "请根据具体上下文补充修改建议"
       ],
       "group_id": "g-006"
     },
     {
-      "id": "thesis-literature-review-014",
-      "source": "thesis",
-      "category": "literature-review",
-      "severity": "minor",
-      "scope": "paragraph",
-      "locator": {
-        "chapter": "正文",
-        "paragraph_index": 0
-      },
-      "excerpt": "**时效性分布不均**：引用文献中2024-2025年文献较多（如黄赤橙2025、李红斌2025），但2015-2...",
-      "anchor_text": "**时效性分布不均**：引用文献中2024-2025年文献较多（如黄赤橙2025",
-      "problem": "**时效性分布不均**：引用文献中2024-2025年文献较多（如黄赤橙2025、李红斌2025），但2015-2020年间文献相对匮乏",
-      "suggestion": [
-        "请根据具体上下文补充修改建议"
-      ],
-      "group_id": "g-007"
-    },
-    {
-      "id": "thesis-literature-review-015",
-      "source": "thesis",
-      "category": "literature-review",
-      "severity": "minor",
-      "scope": "paragraph",
-      "locator": {
-        "chapter": "正文",
-        "paragraph_index": 0
-      },
-      "excerpt": "**外文文献缺失**：全文无一篇外文文献，不符合法学本科毕业论文的基本要求",
-      "anchor_text": "**外文文献缺失**：全文无一篇外文文献，不符合法学本科毕业论文的基本要求",
-      "problem": "**外文文献缺失**：全文无一篇外文文献，不符合法学本科毕业论文的基本要求",
-      "suggestion": [
-        "请根据具体上下文补充修改建议"
-      ],
-      "group_id": "g-007"
-    },
-    {
-      "id": "thesis-argumentation-016",
-      "source": "thesis",
-      "category": "argumentation",
-      "severity": "minor",
-      "scope": "paragraph",
-      "locator": {
-        "chapter": "正文",
-        "paragraph_index": 36
-      },
-      "excerpt": "补充域外相关制度研究（如德国《住宅所有权法》、日本《区分所有权法》中的管理规约制度）",
-      "anchor_text": "区分所有权法",
-      "problem": "补充域外相关制度研究（如德国《住宅所有权法》、日本《区分所有权法》中的管理规约制度）",
-      "suggestion": [
-        "请根据具体上下文补充修改建议"
-      ],
-      "group_id": "g-008"
-    },
-    {
-      "id": "thesis-literature-review-017",
-      "source": "thesis",
-      "category": "literature-review",
-      "severity": "minor",
-      "scope": "paragraph",
-      "locator": {
-        "chapter": "正文",
-        "paragraph_index": 0
-      },
-      "excerpt": "增加外文文献引用（至少3-5篇）",
-      "anchor_text": "增加外文文献引用（至少3-5篇）",
-      "problem": "增加外文文献引用（至少3-5篇）",
-      "suggestion": [
-        "请根据具体上下文补充修改建议"
-      ],
-      "group_id": "g-007"
-    },
-    {
-      "id": "thesis-argumentation-018",
-      "source": "thesis",
-      "category": "argumentation",
-      "severity": "minor",
-      "scope": "paragraph",
-      "locator": {
-        "chapter": "正文",
-        "paragraph_index": 0
-      },
-      "excerpt": "样本量（100件）相对全国每年约90万件物业纠纷而言偏小",
-      "anchor_text": "样本量（100件）相对全国每年约90万件物业纠纷而言偏小",
-      "problem": "样本量（100件）相对全国每年约90万件物业纠纷而言偏小",
-      "suggestion": [
-        "请根据具体上下文补充修改建议"
-      ],
-      "group_id": "g-001"
-    },
-    {
-      "id": "thesis-argumentation-019",
-      "source": "thesis",
-      "category": "argumentation",
-      "severity": "minor",
-      "scope": "paragraph",
-      "locator": {
-        "chapter": "正文",
-        "paragraph_index": 54
-      },
-      "excerpt": "地域分布集中于广东（32%）、浙江、北京等地，中西部地区代表性不足",
-      "anchor_text": "北京等地",
-      "problem": "地域分布集中于广东（32%）、浙江、北京等地，中西部地区代表性不足",
-      "suggestion": [
-        "请根据具体上下文补充修改建议"
-      ],
-      "group_id": "g-009"
-    },
-    {
-      "id": "thesis-argumentation-020",
-      "source": "thesis",
-      "category": "argumentation",
-      "severity": "minor",
-      "scope": "paragraph",
-      "locator": {
-        "chapter": "正文",
-        "paragraph_index": 93
-      },
-      "excerpt": "作者已意识到\"对中西部欠发达地区的代表性有所弱化\"，但未提出补救措施",
-      "anchor_text": "对中西部欠发达地区的代表性有所弱化",
-      "problem": "作者已意识到\"对中西部欠发达地区的代表性有所弱化\"，但未提出补救措施",
-      "suggestion": [
-        "请根据具体上下文补充修改建议"
-      ],
-      "group_id": "g-010"
-    },
-    {
-      "id": "citation-citation-format-021",
-      "source": "citation",
-      "category": "citation-format",
-      "severity": "minor",
-      "scope": "sentence",
-      "locator": {
-        "chapter": "正文",
-        "paragraph_index": 11
-      },
-      "excerpt": "\"费项目\"应为\"收费项目\"（第四章脚注22引用部分）",
-      "anchor_text": "收费项目",
-      "problem": "\"费项目\"应为\"收费项目\"（第四章脚注22引用部分）",
-      "suggestion": [
-        "请根据具体上下文补充修改建议"
-      ],
-      "group_id": "g-011"
-    },
-    {
-      "id": "thesis-legal-norms-022",
+      "id": "thesis-legal-norms-008",
       "source": "thesis",
       "category": "legal-norms",
       "severity": "minor",
@@ -389,502 +137,88 @@
         "chapter": "正文",
         "paragraph_index": 0
       },
-      "excerpt": "部分法条引用未标明具体款项，如《民法典》第943条有多个分句，应精确到款",
-      "anchor_text": "部分法条引用未标明具体款项，如《民法典》第943条有多个分句，应精确到款",
-      "problem": "部分法条引用未标明具体款项，如《民法典》第943条有多个分句，应精确到款",
+      "excerpt": "**《民法典》第943条适用表述不准确**：论文中引用《民法典》第943条时，将\"服务事项、收费项目、履行情况\"等...",
+      "anchor_text": "**《民法典》第943条适用表述不准确**：论文中引用《民法典》第943条时，将",
+      "problem": "**《民法典》第943条适用表述不准确**：论文中引用《民法典》第943条时，将\"服务事项、收费项目、履行情况\"等公开义务的范围表述为\"服务情况和费用信息\"，缩小了法定公开义务的范围，规范适用存在偏差。anchor_text=\"《民法典》第943条明确要求物业服务人以合理方式将服务事项\"",
       "suggestion": [
         "请根据具体上下文补充修改建议"
       ],
-      "group_id": "g-012"
+      "group_id": "g-006"
     },
     {
-      "id": "thesis-argumentation-023",
-      "source": "thesis",
-      "category": "argumentation",
-      "severity": "minor",
-      "scope": "paragraph",
-      "locator": {
-        "chapter": "正文",
-        "paragraph_index": 67
-      },
-      "excerpt": "部分表述口语化，如\"法院只能审合同、不能审服务对价\"（第三章）",
-      "anchor_text": "法院只能审合同、不能审服务对价",
-      "problem": "部分表述口语化，如\"法院只能审合同、不能审服务对价\"（第三章）",
-      "suggestion": [
-        "请根据具体上下文补充修改建议"
-      ],
-      "group_id": "g-013"
-    },
-    {
-      "id": "citation-citation-format-024",
+      "id": "citation-citation-format-009",
       "source": "citation",
       "category": "citation-format",
       "severity": "minor",
       "scope": "sentence",
       "locator": {
         "chapter": "正文",
-        "paragraph_index": 38
+        "paragraph_index": 0
       },
-      "excerpt": "\"把纠纷化于诉外、止于诉内\"（脚注18引用郑峥文）——表述不够严谨",
-      "anchor_text": "把纠纷化于诉外、止于诉内",
-      "problem": "\"把纠纷化于诉外、止于诉内\"（脚注18引用郑峥文）——表述不够严谨",
+      "excerpt": "**脚注3引用来源错误**：脚注3标注为\"中国消费者协会：《2025年全国消协组织受理投诉情况分析》\"，但该脚注对...",
+      "anchor_text": "**脚注3引用来源错误**：脚注3标注为\"中国消费者协会：《2025年全国消协组",
+      "problem": "**脚注3引用来源错误**：脚注3标注为\"中国消费者协会：《2025年全国消协组织受理投诉情况分析》\"，但该脚注对应的正文内容是\"四川省2024年到2025年9月一审新收的各类涉物业纠纷案件达到了70796件\"，引用来源与内容不匹配。anchor_text=\"四川省2024年到2025年9月一审新收的各类涉物业纠纷案件达到了70796件\"",
       "suggestion": [
         "请根据具体上下文补充修改建议"
       ],
-      "group_id": "g-014"
+      "group_id": "g-007"
     },
     {
-      "id": "thesis-argumentation-025",
+      "id": "thesis-legal-norms-010",
       "source": "thesis",
-      "category": "argumentation",
-      "severity": "minor",
-      "scope": "paragraph",
-      "locator": {
-        "chapter": "正文",
-        "paragraph_index": 33
-      },
-      "excerpt": "\"仅以2025年\"——成分残缺，缺少\"为例\"或改为\"仅2025年一年\"",
-      "anchor_text": "仅以2025年",
-      "problem": "\"仅以2025年\"——成分残缺，缺少\"为例\"或改为\"仅2025年一年\"",
-      "suggestion": [
-        "请根据具体上下文补充修改建议"
-      ],
-      "group_id": "g-015"
-    },
-    {
-      "id": "thesis-argumentation-026",
-      "source": "thesis",
-      "category": "argumentation",
-      "severity": "minor",
-      "scope": "paragraph",
-      "locator": {
-        "chapter": "正文",
-        "paragraph_index": 33
-      },
-      "excerpt": "\"全国住宅物业服务满意度掉到了69.1分\"——\"掉到了\"口语化，建议改为\"降至\"",
-      "anchor_text": "全国住宅物业服务满意度掉到了69.1分",
-      "problem": "\"全国住宅物业服务满意度掉到了69.1分\"——\"掉到了\"口语化，建议改为\"降至\"",
-      "suggestion": [
-        "请根据具体上下文补充修改建议"
-      ],
-      "group_id": "g-015"
-    },
-    {
-      "id": "thesis-argumentation-027",
-      "source": "thesis",
-      "category": "argumentation",
-      "severity": "minor",
-      "scope": "paragraph",
-      "locator": {
-        "chapter": "正文",
-        "paragraph_index": 33
-      },
-      "excerpt": "\"物业服务合同纠纷已不是零星的个案，而是一个带有较强普遍性的现实问题\"——搭配不当，\"较强普遍性\"应改为\"较强普遍...",
-      "anchor_text": "物业服务合同纠纷已不是零星的个案，而是一个带有较强普遍性的现实问题",
-      "problem": "\"物业服务合同纠纷已不是零星的个案，而是一个带有较强普遍性的现实问题\"——搭配不当，\"较强普遍性\"应改为\"较强普遍性特征\"或删除\"较强\"",
-      "suggestion": [
-        "请根据具体上下文补充修改建议"
-      ],
-      "group_id": "g-015"
-    },
-    {
-      "id": "thesis-argumentation-028",
-      "source": "thesis",
-      "category": "argumentation",
-      "severity": "minor",
-      "scope": "paragraph",
-      "locator": {
-        "chapter": "正文",
-        "paragraph_index": 84
-      },
-      "excerpt": "\"收费条款的清单化，是解决规则模糊问题的有效方式\"——表述绝对化，建议改为\"是解决规则模糊问题的有效方式之一\"",
-      "anchor_text": "收费条款的清单化，是解决规则模糊问题的有效方式",
-      "problem": "\"收费条款的清单化，是解决规则模糊问题的有效方式\"——表述绝对化，建议改为\"是解决规则模糊问题的有效方式之一\"",
-      "suggestion": [
-        "请根据具体上下文补充修改建议"
-      ],
-      "group_id": "g-016"
-    },
-    {
-      "id": "thesis-policy-029",
-      "source": "thesis",
-      "category": "policy",
+      "category": "legal-norms",
       "severity": "minor",
       "scope": "paragraph",
       "locator": {
         "chapter": "正文",
         "paragraph_index": 0
       },
-      "excerpt": "对策建议偏原则性，缺乏具体的制度设计方案",
-      "anchor_text": "对策建议偏原则性，缺乏具体的制度设计方案",
-      "problem": "对策建议偏原则性，缺乏具体的制度设计方案",
+      "excerpt": "**多处表述存在口语化问题**：论文中出现\"掉到了69.1分\"、\"降到至71%\"、\"攒到一定程度\"等口语化表述，不...",
+      "anchor_text": "**多处表述存在口语化问题**：论文中出现\"掉到了69.1分\"、\"降到至71%\"",
+      "problem": "**多处表述存在口语化问题**：论文中出现\"掉到了69.1分\"、\"降到至71%\"、\"攒到一定程度\"等口语化表述，不符合学术论文的正式语言规范。anchor_text=\"全国住宅物业服务满意度掉到了69.1分\"",
+      "suggestion": [
+        "请根据具体上下文补充修改建议"
+      ],
+      "group_id": "g-006"
+    },
+    {
+      "id": "thesis-argumentation-011",
+      "source": "thesis",
+      "category": "argumentation",
+      "severity": "minor",
+      "scope": "paragraph",
+      "locator": {
+        "chapter": "正文",
+        "paragraph_index": 0
+      },
+      "excerpt": "**逻辑表述存在冗余**：如\"本可在诉前能消解的分歧\"同时使用\"可\"和\"能\"，存在语义重复；\"法院不得不需要承担这...",
+      "anchor_text": "**逻辑表述存在冗余**：如\"本可在诉前能消解的分歧\"同时使用\"可\"和\"能\"，存",
+      "problem": "**逻辑表述存在冗余**：如\"本可在诉前能消解的分歧\"同时使用\"可\"和\"能\"，存在语义重复；\"法院不得不需要承担这种事后回溯式的事实确认工作\"中\"不得不\"和\"需要\"语义冗余。anchor_text=\"导致本可在诉前能消解的分歧，直接涌入了诉讼程序\"",
+      "suggestion": [
+        "请根据具体上下文补充修改建议"
+      ],
+      "group_id": "g-005"
+    },
+    {
+      "id": "thesis-literature-review-012",
+      "source": "thesis",
+      "category": "literature-review",
+      "severity": "minor",
+      "scope": "paragraph",
+      "locator": {
+        "chapter": "正文",
+        "paragraph_index": 0
+      },
+      "excerpt": "**参考文献格式不符合GB/T 7714-2015要求**：参考文献中期刊文献缺少出版地信息，如\"陈华彬：《建筑物...",
+      "anchor_text": "**参考文献格式不符合GB/T 7714-2015要求**：参考文献中期刊文献缺",
+      "problem": "**参考文献格式不符合GB/T 7714-2015要求**：参考文献中期刊文献缺少出版地信息，如\"陈华彬：《建筑物区分所有权的构成研究——兼及对〈物权法〉第70条的释明》，载《中国不动产法研究》2015年第2期\"，缺少出版地和出版社信息；部分文献页码标注不完整。anchor_text=\"王利明：《合同法研究》（第三卷），中国人民大学出版社2015年版\"",
       "suggestion": [
         "请根据具体上下文补充修改建议"
       ],
       "group_id": "g-002"
     },
     {
-      "id": "thesis-argumentation-030",
-      "source": "thesis",
-      "category": "argumentation",
-      "severity": "minor",
-      "scope": "paragraph",
-      "locator": {
-        "chapter": "正文",
-        "paragraph_index": 0
-      },
-      "excerpt": "未对建议的可行性进行成本-收益分析",
-      "anchor_text": "未对建议的可行性进行成本-收益分析",
-      "problem": "未对建议的可行性进行成本-收益分析",
-      "suggestion": [
-        "请根据具体上下文补充修改建议"
-      ],
-      "group_id": "g-001"
-    },
-    {
-      "id": "thesis-argumentation-031",
-      "source": "thesis",
-      "category": "argumentation",
-      "severity": "minor",
-      "scope": "paragraph",
-      "locator": {
-        "chapter": "正文",
-        "paragraph_index": 0
-      },
-      "excerpt": "缺乏对实施障碍的预判和应对",
-      "anchor_text": "缺乏对实施障碍的预判和应对",
-      "problem": "缺乏对实施障碍的预判和应对",
-      "suggestion": [
-        "请根据具体上下文补充修改建议"
-      ],
-      "group_id": "g-001"
-    },
-    {
-      "id": "citation-citation-format-032",
-      "source": "citation",
-      "category": "citation-format",
-      "severity": "minor",
-      "scope": "sentence",
-      "locator": {
-        "chapter": "正文",
-        "paragraph_index": 36
-      },
-      "excerpt": "正文夹注与脚注混用，如\"陈华彬（2015）\"\"王利明（2018）\"等",
-      "anchor_text": "陈华彬（2015）",
-      "problem": "正文夹注与脚注混用，如\"陈华彬（2015）\"\"王利明（2018）\"等",
-      "suggestion": [
-        "请根据具体上下文补充修改建议"
-      ],
-      "group_id": "g-017"
-    },
-    {
-      "id": "citation-citation-format-033",
-      "source": "citation",
-      "category": "citation-format",
-      "severity": "minor",
-      "scope": "sentence",
-      "locator": {
-        "chapter": "正文",
-        "paragraph_index": 0
-      },
-      "excerpt": "脚注格式不统一，部分缺少页码（如脚注7、8、9等）",
-      "anchor_text": "脚注格式不统一，部分缺少页码（如脚注7、8、9等）",
-      "problem": "脚注格式不统一，部分缺少页码（如脚注7、8、9等）",
-      "suggestion": [
-        "请根据具体上下文补充修改建议"
-      ],
-      "group_id": "g-018"
-    },
-    {
-      "id": "thesis-literature-review-034",
-      "source": "thesis",
-      "category": "literature-review",
-      "severity": "minor",
-      "scope": "paragraph",
-      "locator": {
-        "chapter": "正文",
-        "paragraph_index": 0
-      },
-      "excerpt": "同一文献多次引用时未使用\"同前注\"等简化格式",
-      "anchor_text": "同一文献多次引用时未使用\"同前注\"等简化格式",
-      "problem": "同一文献多次引用时未使用\"同前注\"等简化格式",
-      "suggestion": [
-        "请根据具体上下文补充修改建议"
-      ],
-      "group_id": "g-007"
-    },
-    {
-      "id": "citation-citation-format-035",
-      "source": "citation",
-      "category": "citation-format",
-      "severity": "minor",
-      "scope": "sentence",
-      "locator": {
-        "chapter": "正文",
-        "paragraph_index": 0
-      },
-      "excerpt": "**网络资源格式错误**：应标注访问日期，格式应为\"https://www.court.gov.cn（访问日期：2...",
-      "anchor_text": "**网络资源格式错误**：应标注访问日期，格式应为\"https://www.co",
-      "problem": "**网络资源格式错误**：应标注访问日期，格式应为\"https://www.court.gov.cn（访问日期：2026年4月11日）\"",
-      "suggestion": [
-        "请根据具体上下文补充修改建议"
-      ],
-      "group_id": "g-018"
-    },
-    {
-      "id": "thesis-literature-review-036",
-      "source": "thesis",
-      "category": "literature-review",
-      "severity": "minor",
-      "scope": "paragraph",
-      "locator": {
-        "chapter": "正文",
-        "paragraph_index": 0
-      },
-      "excerpt": "**缺少页码**：期刊文献未标注页码（如脚注7-21）",
-      "anchor_text": "**缺少页码**：期刊文献未标注页码（如脚注7-21）",
-      "problem": "**缺少页码**：期刊文献未标注页码（如脚注7-21）",
-      "suggestion": [
-        "请根据具体上下文补充修改建议"
-      ],
-      "group_id": "g-007"
-    },
-    {
-      "id": "citation-citation-format-037",
-      "source": "citation",
-      "category": "citation-format",
-      "severity": "minor",
-      "scope": "sentence",
-      "locator": {
-        "chapter": "正文",
-        "paragraph_index": 0
-      },
-      "excerpt": "**格式不统一**：有的脚注有\"载\"字，有的没有",
-      "anchor_text": "**格式不统一**：有的脚注有\"载\"字，有的没有",
-      "problem": "**格式不统一**：有的脚注有\"载\"字，有的没有",
-      "suggestion": [
-        "请根据具体上下文补充修改建议"
-      ],
-      "group_id": "g-018"
-    },
-    {
-      "id": "thesis-literature-review-038",
-      "source": "thesis",
-      "category": "literature-review",
-      "severity": "minor",
-      "scope": "paragraph",
-      "locator": {
-        "chapter": "正文",
-        "paragraph_index": 121
-      },
-      "excerpt": "**报告类文献格式错误**：\"广东省高级人民法院：《广东法院物业服务合同纠纷审判白皮书（2024）》，2025年4...",
-      "anchor_text": "广东省高级人民法院：《广东法院物业服务合同纠纷审判白皮书（2024）》，2025年4月",
-      "problem": "**报告类文献格式错误**：\"广东省高级人民法院：《广东法院物业服务合同纠纷审判白皮书（2024）》，2025年4月\"——缺少发布机构和完整出版信息",
-      "suggestion": [
-        "请根据具体上下文补充修改建议"
-      ],
-      "group_id": "g-019"
-    },
-    {
-      "id": "thesis-literature-review-039",
-      "source": "thesis",
-      "category": "literature-review",
-      "severity": "minor",
-      "scope": "paragraph",
-      "locator": {
-        "chapter": "正文",
-        "paragraph_index": 97
-      },
-      "excerpt": "期刊文献未标注页码（如\"邓冬梅：《基于〈民法典〉视角下业主委员会签订物业服务合同的思考与探索》，载《法制与社会》2...",
-      "anchor_text": "邓冬梅：《基于〈民法典〉视角下业主委员会签订物业服务合同的思考与探索》，载《法制与社会》2021年第9期",
-      "problem": "期刊文献未标注页码（如\"邓冬梅：《基于〈民法典〉视角下业主委员会签订物业服务合同的思考与探索》，载《法制与社会》2021年第9期\"）",
-      "suggestion": [
-        "请根据具体上下文补充修改建议"
-      ],
-      "group_id": "g-020"
-    },
-    {
-      "id": "thesis-literature-review-040",
-      "source": "thesis",
-      "category": "literature-review",
-      "severity": "minor",
-      "scope": "paragraph",
-      "locator": {
-        "chapter": "正文",
-        "paragraph_index": 0
-      },
-      "excerpt": "文献排序混乱，未按作者姓氏拼音或出版年份排序",
-      "anchor_text": "文献排序混乱，未按作者姓氏拼音或出版年份排序",
-      "problem": "文献排序混乱，未按作者姓氏拼音或出版年份排序",
-      "suggestion": [
-        "请根据具体上下文补充修改建议"
-      ],
-      "group_id": "g-007"
-    },
-    {
-      "id": "thesis-literature-review-041",
-      "source": "thesis",
-      "category": "literature-review",
-      "severity": "minor",
-      "scope": "paragraph",
-      "locator": {
-        "chapter": "正文",
-        "paragraph_index": 0
-      },
-      "excerpt": "缺少外文文献",
-      "anchor_text": "缺少外文文献",
-      "problem": "缺少外文文献",
-      "suggestion": [
-        "请根据具体上下文补充修改建议"
-      ],
-      "group_id": "g-007"
-    },
-    {
-      "id": "thesis-empirical-042",
-      "source": "thesis",
-      "category": "empirical",
-      "severity": "minor",
-      "scope": "paragraph",
-      "locator": {
-        "chapter": "正文",
-        "paragraph_index": 0
-      },
-      "excerpt": "案例引用格式不统一",
-      "anchor_text": "案例引用格式不统一",
-      "problem": "案例引用格式不统一",
-      "suggestion": [
-        "请根据具体上下文补充修改建议"
-      ],
-      "group_id": "g-003"
-    },
-    {
-      "id": "thesis-empirical-043",
-      "source": "thesis",
-      "category": "empirical",
-      "severity": "minor",
-      "scope": "paragraph",
-      "locator": {
-        "chapter": "正文",
-        "paragraph_index": 0
-      },
-      "excerpt": "部分案例未标注审理法院全称",
-      "anchor_text": "部分案例未标注审理法院全称",
-      "problem": "部分案例未标注审理法院全称",
-      "suggestion": [
-        "请根据具体上下文补充修改建议"
-      ],
-      "group_id": "g-003"
-    },
-    {
-      "id": "thesis-argumentation-044",
-      "source": "thesis",
-      "category": "argumentation",
-      "severity": "minor",
-      "scope": "paragraph",
-      "locator": {
-        "chapter": "正文",
-        "paragraph_index": 0
-      },
-      "excerpt": "建议统一采用\"原告诉被告案，审理法院（年份）案号\"格式",
-      "anchor_text": "建议统一采用\"原告诉被告案，审理法院（年份）案号\"格式",
-      "problem": "建议统一采用\"原告诉被告案，审理法院（年份）案号\"格式",
-      "suggestion": [
-        "请根据具体上下文补充修改建议"
-      ],
-      "group_id": "g-001"
-    },
-    {
-      "id": "thesis-empirical-045",
-      "source": "thesis",
-      "category": "empirical",
-      "severity": "minor",
-      "scope": "paragraph",
-      "locator": {
-        "chapter": "正文",
-        "paragraph_index": 0
-      },
-      "excerpt": "2025年全年数据在2026年5月是否已完全统计？",
-      "anchor_text": "2025年全年数据在2026年5月是否已完全统计？",
-      "problem": "2025年全年数据在2026年5月是否已完全统计？",
-      "suggestion": [
-        "请根据具体上下文补充修改建议"
-      ],
-      "group_id": "g-003"
-    },
-    {
-      "id": "thesis-empirical-046",
-      "source": "thesis",
-      "category": "empirical",
-      "severity": "minor",
-      "scope": "paragraph",
-      "locator": {
-        "chapter": "正文",
-        "paragraph_index": 33
-      },
-      "excerpt": "\"2025年全国消协组织受理的物业类投诉有12.87万件\"——需核实数据来源",
-      "anchor_text": "2025年全国消协组织受理的物业类投诉有12.87万件",
-      "problem": "\"2025年全国消协组织受理的物业类投诉有12.87万件\"——需核实数据来源",
-      "suggestion": [
-        "请根据具体上下文补充修改建议"
-      ],
-      "group_id": "g-021"
-    },
-    {
-      "id": "thesis-argumentation-047",
-      "source": "thesis",
-      "category": "argumentation",
-      "severity": "minor",
-      "scope": "paragraph",
-      "locator": {
-        "chapter": "正文",
-        "paragraph_index": 33
-      },
-      "excerpt": "\"全国住宅物业服务满意度掉到了69.1分\"——需核实调查机构和调查方法",
-      "anchor_text": "全国住宅物业服务满意度掉到了69.1分",
-      "problem": "\"全国住宅物业服务满意度掉到了69.1分\"——需核实调查机构和调查方法",
-      "suggestion": [
-        "请根据具体上下文补充修改建议"
-      ],
-      "group_id": "g-015"
-    },
-    {
-      "id": "thesis-structure-048",
-      "source": "thesis",
-      "category": "structure",
-      "severity": "minor",
-      "scope": "chapter",
-      "locator": {
-        "chapter": "正文",
-        "paragraph_index": 0
-      },
-      "excerpt": "",
-      "anchor_text": "结构比例失衡，对策建议部分偏单薄",
-      "problem": "结构比例失衡，对策建议部分偏单薄",
-      "suggestion": [
-        "请根据具体上下文补充修改建议"
-      ],
-      "group_id": "g-022"
-    },
-    {
-      "id": "thesis-literature-review-049",
-      "source": "thesis",
-      "category": "literature-review",
-      "severity": "minor",
-      "scope": "paragraph",
-      "locator": {
-        "chapter": "正文",
-        "paragraph_index": 0
-      },
-      "excerpt": "文献综述缺少域外文献和外文文献",
-      "anchor_text": "文献综述缺少域外文献和外文文献",
-      "problem": "文献综述缺少域外文献和外文文献",
-      "suggestion": [
-        "请根据具体上下文补充修改建议"
-      ],
-      "group_id": "g-007"
-    },
-    {
-      "id": "thesis-legal-norms-050",
+      "id": "thesis-legal-norms-013",
       "source": "thesis",
       "category": "legal-norms",
       "severity": "minor",
@@ -893,143 +227,17 @@
         "chapter": "正文",
         "paragraph_index": 0
       },
-      "excerpt": "引注格式混乱，不符合学术规范",
-      "anchor_text": "引注格式混乱，不符合学术规范",
-      "problem": "引注格式混乱，不符合学术规范",
+      "excerpt": "**脚注24来源标注不规范**：脚注24标注为\"前文100份裁判文书样本的分类统计结果及总体分析结论\"，未明确具体...",
+      "anchor_text": "**脚注24来源标注不规范**：脚注24标注为\"前文100份裁判文书样本的分类统",
+      "problem": "**脚注24来源标注不规范**：脚注24标注为\"前文100份裁判文书样本的分类统计结果及总体分析结论\"，未明确具体来源页码或统计依据，不符合引注规范。anchor_text=\"基于上述归类逻辑，下文将四类争议按其主要生成阶段分别纳入订立、履行与争议显现三个环节加以分析\"",
       "suggestion": [
         "请根据具体上下文补充修改建议"
       ],
-      "group_id": "g-012"
-    },
-    {
-      "id": "thesis-argumentation-051",
-      "source": "thesis",
-      "category": "argumentation",
-      "severity": "minor",
-      "scope": "paragraph",
-      "locator": {
-        "chapter": "正文",
-        "paragraph_index": 0
-      },
-      "excerpt": "论证深度有待加强，案例分析停留在描述层面",
-      "anchor_text": "论证深度有待加强，案例分析停留在描述层面",
-      "problem": "论证深度有待加强，案例分析停留在描述层面",
-      "suggestion": [
-        "请根据具体上下文补充修改建议"
-      ],
-      "group_id": "g-001"
-    },
-    {
-      "id": "thesis-argumentation-052",
-      "source": "thesis",
-      "category": "argumentation",
-      "severity": "minor",
-      "scope": "paragraph",
-      "locator": {
-        "chapter": "正文",
-        "paragraph_index": 0
-      },
-      "excerpt": "存在若干病句和口语化表述",
-      "anchor_text": "存在若干病句和口语化表述",
-      "problem": "存在若干病句和口语化表述",
-      "suggestion": [
-        "请根据具体上下文补充修改建议"
-      ],
-      "group_id": "g-001"
-    },
-    {
-      "id": "thesis-structure-053",
-      "source": "thesis",
-      "category": "structure",
-      "severity": "minor",
-      "scope": "chapter",
-      "locator": {
-        "chapter": "正文",
-        "paragraph_index": 0
-      },
-      "excerpt": "",
-      "anchor_text": "优先解决结构比例和引注格式问题",
-      "problem": "优先解决结构比例和引注格式问题",
-      "suggestion": [
-        "请根据具体上下文补充修改建议"
-      ],
-      "group_id": "g-022"
-    },
-    {
-      "id": "thesis-literature-review-054",
-      "source": "thesis",
-      "category": "literature-review",
-      "severity": "minor",
-      "scope": "paragraph",
-      "locator": {
-        "chapter": "正文",
-        "paragraph_index": 0
-      },
-      "excerpt": "补充域外文献和外文文献",
-      "anchor_text": "补充域外文献和外文文献",
-      "problem": "补充域外文献和外文文献",
-      "suggestion": [
-        "请根据具体上下文补充修改建议"
-      ],
-      "group_id": "g-007"
-    },
-    {
-      "id": "thesis-empirical-055",
-      "source": "thesis",
-      "category": "empirical",
-      "severity": "minor",
-      "scope": "paragraph",
-      "locator": {
-        "chapter": "正文",
-        "paragraph_index": 0
-      },
-      "excerpt": "深化案例分析，提炼裁判规则",
-      "anchor_text": "深化案例分析，提炼裁判规则",
-      "problem": "深化案例分析，提炼裁判规则",
-      "suggestion": [
-        "请根据具体上下文补充修改建议"
-      ],
-      "group_id": "g-003"
-    },
-    {
-      "id": "thesis-legal-norms-056",
-      "source": "thesis",
-      "category": "legal-norms",
-      "severity": "minor",
-      "scope": "paragraph",
-      "locator": {
-        "chapter": "正文",
-        "paragraph_index": 0
-      },
-      "excerpt": "规范语言表达，删除口语化表述",
-      "anchor_text": "规范语言表达，删除口语化表述",
-      "problem": "规范语言表达，删除口语化表述",
-      "suggestion": [
-        "请根据具体上下文补充修改建议"
-      ],
-      "group_id": "g-012"
-    },
-    {
-      "id": "thesis-empirical-057",
-      "source": "thesis",
-      "category": "empirical",
-      "severity": "minor",
-      "scope": "paragraph",
-      "locator": {
-        "chapter": "正文",
-        "paragraph_index": 0
-      },
-      "excerpt": "核实数据来源，确保准确性",
-      "anchor_text": "核实数据来源，确保准确性",
-      "problem": "核实数据来源，确保准确性",
-      "suggestion": [
-        "请根据具体上下文补充修改建议"
-      ],
-      "group_id": "g-003"
+      "group_id": "g-006"
     }
   ],
   "quality_gate": {
-    "total_issues": 57,
+    "total_issues": 13,
     "substantive_issues": 0,
     "quality_gate_passed": false
   }

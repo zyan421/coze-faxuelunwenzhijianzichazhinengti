@@ -353,18 +353,43 @@ def normalize_issues_for_annotation(analysis_result: str, paper_text: str) -> st
                 return val
         return "minor"
 
+    # ── 封面页/模板文本（匹配到这些位置毫无意义，必须排除）──
+    _COVER_BLACKLIST = {
+        "湘潭大学", "毕业论文", "学士学位论文", "硕士论文", "博士论文",
+        "学号", "指导教师", "学院", "法学学部", "Faculty of Law",
+        "Xiangtan University", "本科", "课程论文", "原创性声明",
+        "版权使用授权书", "答辩委员会", "摘要", "Abstract", "关键词",
+        "Keywords", "目录", "参考文献", "致谢", "附录",
+    }
+
     def _find_anchor(text: str, paper: str) -> str:
-        """在论文文本中寻找可定位的 anchor_text，返回前60码点。
+        """在论文正文中寻找可定位的 anchor_text，返回前60码点。
         
         策略（按优先级）：
         1. 引号内原文引用（LLM 在分析中直接引用论文原文）
         2. 6-50字的中文句子片段
         3. 4-8字的关键词搜索
         4. 兜底：描述前40字（inject-docx 仍可定位）
+        
+        关键：跳过封面页/模板区域，只在正文区域匹配。
         """
         if not paper or not text:
             return text[:60] if text else ""
+
+        # ── 找到正文起始位置（跳过封面/目录等前置部分）──
+        body_start = 0
+        # 策略：查找"第一章"/"第1章"/"绪论"/"引言"/"一、" 等正文标志
+        for marker in [r'第[一1]章', r'绪\s*论', r'引\s*言', r'一、']:
+            m = re.search(marker, paper)
+            if m:
+                body_start = max(body_start, m.start())
+                break
+        # 如果没找到，跳过前30%的文本（通常是封面+目录+摘要）
+        if body_start == 0 and len(paper) > 2000:
+            body_start = int(len(paper) * 0.15)
         
+        body_paper = paper[body_start:]  # 只在正文区域搜索
+
         candidates = []
         # 1. 引号内原文引用（最高优先级）
         for m in re.finditer(r'["""](.{4,60}?)["""]', text):
@@ -379,22 +404,25 @@ def normalize_issues_for_annotation(analysis_result: str, paper_text: str) -> st
             if cand not in seen:
                 seen[cand] = True
                 unique.append((length, cand, priority))
-        unique.sort(key=lambda x: (-x[2], -x[0]))  # 优先级高 → 长度长优先
+        unique.sort(key=lambda x: (-x[2], -x[0]))
         
         stop_words = {"全文", "本文", "论文", "该文", "该论文", "建议", "问题", "内容", "相关",
-                       "主要", "重要", "严重", "轻微", "具体", "有关", "研究", "分析"}
+                       "主要", "重要", "严重", "轻微", "具体", "有关", "研究", "分析",
+                       "湘潭大学", "毕业论文", "学士学位", "学号", "指导教师"}
         for _, cand, _ in unique:
             if cand in stop_words:
                 continue
-            if cand in paper:
+            # 必须在正文区域出现，且不在封面黑名单中
+            if cand in body_paper and not any(bw in cand for bw in _COVER_BLACKLIST if len(bw) <= len(cand)):
                 return cand[:60]
         
-        # 降级：搜索关键词
+        # 降级：在正文区域搜索关键词
         words = re.findall(r'[\u4e00-\u9fff]{4,8}', text)
         for w in sorted(set(words), key=len, reverse=True):
-            if w not in stop_words and w in paper:
+            if w not in stop_words and w in body_paper and not any(bw in w for bw in _COVER_BLACKLIST if len(bw) <= len(w)):
                 return w[:60]
         
+        # 最终兜底：返回原文片段（inject-docx 会按最近匹配处理）
         return text.strip()[:40][:60]
 
     def _infer_chapter(text: str, paper: str) -> str:
@@ -894,6 +922,42 @@ def generate_markdown_report(analysis_result: str = "") -> str:
 
     try:
         from coze_coding_dev_sdk import DocumentGenerationClient
+
+        # ── 构建问题清单（用有序列表代替表格，PDF 排版更清晰）──
+        issues_detail = ""
+        if issues_data and "issues" in issues_data:
+            issues_list = issues_data["issues"]
+            sorted_issues = sorted(issues_list, key=lambda x: SEVERITY_ORDER.get(x.get("severity", "minor"), 2))
+            fatal_count = sum(1 for i in issues_list if i.get("severity") == "fatal")
+            major_count = sum(1 for i in issues_list if i.get("severity") == "major")
+            minor_count = sum(1 for i in issues_list if i.get("severity") == "minor")
+
+            issues_detail = f"共 **{len(issues_list)}** 项问题：致命 {fatal_count} 项 / 严重 {major_count} 项 / 轻微 {minor_count} 项\n\n"
+
+            for idx, issue in enumerate(sorted_issues, 1):
+                sev = issue.get("severity", "minor")
+                sev_label = {"fatal": "❌ 致命", "major": "⚠️ 严重", "minor": "💡 轻微"}.get(sev, "💡 轻微")
+                cat = issue.get("category", "unknown")
+                cat_label = {
+                    "structure": "结构逻辑", "argumentation": "论证严谨性",
+                    "literature-review": "文献综述", "empirical": "实证分析",
+                    "legal-norms": "规范适用", "language": "语言表达",
+                    "policy": "政策建议", "academic-integrity": "学术诚信",
+                    "citation-format": "引注格式", "citation-missing-info": "引注缺失"
+                }.get(cat, cat)
+                problem = issue.get("problem", "（未描述）").replace("|", "｜").replace("\n", " ")
+                suggestions = issue.get("suggestion", [])
+                sug_text = "；".join(suggestions[:3]).replace("\n", " ") if suggestions else "请根据上下文修改"
+                excerpt = issue.get("excerpt", "")[:80].replace("\n", " ")
+
+                issues_detail += f"### {idx}. {sev_label} 【{cat_label}】\n\n"
+                issues_detail += f"**问题**：{problem}\n\n"
+                if excerpt:
+                    issues_detail += f"**原文**：…{excerpt}…\n\n"
+                issues_detail += f"**建议**：{sug_text}\n\n---\n\n"
+        else:
+            issues_detail = "> 问题清单数据暂不可用，请参考上方审查分析内容。\n"
+
         report_md = f"""# 法学论文质检审查报告
 
 ---
@@ -906,11 +970,9 @@ def generate_markdown_report(analysis_result: str = "") -> str:
 
 ## 问题清单
 
-{issues_table}
+{issues_detail}
 
----
-
-## 说明
+## 使用说明
 
 - 本报告由法学论文质检自查智能体自动生成
 - 审查结果仅供参考，请以导师/评阅人意见为准
