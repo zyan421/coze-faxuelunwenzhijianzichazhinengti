@@ -7,12 +7,12 @@
 <style>
   /* ========== 色彩体系 (参考湘潭大学法学学部 #9F191E) ========== */
   :root {
-    --xtu-primary: #9F191E;        /* 湘大法学主色：酒红 */
-    --xtu-primary-light: #C44549;  /* 浅酒红 */
-    --xtu-primary-pale: #F5E9E9;   /* 极浅酒红背景 */
-    --xtu-primary-ghost: rgba(159,25,30,0.05); /* 酒红幽灵色 */
-    --xtu-accent-gold: #B8860B;    /* 暗金 — 轻奢点缀 */
-    --xtu-accent-gold-pale: #FAF5E6; /* 极浅金背景 */
+    --xtu-primary: #9F191E;
+    --xtu-primary-light: #C44549;
+    --xtu-primary-pale: #F5E9E9;
+    --xtu-primary-ghost: rgba(159,25,30,0.05);
+    --xtu-accent-gold: #B8860B;
+    --xtu-accent-gold-pale: #FAF5E6;
     --xtu-bg: #FAFAFA;
     --xtu-surface: #FFFFFF;
     --xtu-text: #2C2C2C;
@@ -21,6 +21,8 @@
     --xtu-border: #E8E0E0;
     --xtu-shadow: 0 2px 16px rgba(159,25,30,0.06);
     --xtu-radius: 12px;
+    --green: #2E7D32;
+    --green-pale: #E8F5E9;
   }
 
   * { margin:0; padding:0; box-sizing:border-box; }
@@ -52,7 +54,6 @@
   .topbar-logo {
     height: 44px;
     filter: brightness(0) invert(1);
-    /* logo will be an img tag */
   }
   .topbar-title {
     color: #fff;
@@ -180,7 +181,8 @@
     padding: 20px 0 28px;
     position: sticky;
     bottom: 0;
-    background: linear-gradient(to top, var(--xtu-bg) 80%, transparent);
+    background: linear-gradient(to top, var(--xtu-bg) 85%, transparent);
+    z-index: 10;
   }
   .input-hint {
     text-align: center;
@@ -195,9 +197,48 @@
   }
   .input-row {
     display: flex;
-    gap: 12px;
+    gap: 10px;
     align-items: flex-end;
   }
+
+  /* ========== 上传按钮 ========== */
+  .btn-upload {
+    width: 56px;
+    height: 56px;
+    border-radius: var(--xtu-radius);
+    border: 2px dashed var(--xtu-border);
+    background: var(--xtu-surface);
+    color: var(--xtu-text-hint);
+    font-size: 26px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.25s;
+    flex-shrink: 0;
+    position: relative;
+    user-select: none;
+  }
+  .btn-upload:hover {
+    border-color: var(--xtu-primary-light);
+    color: var(--xtu-primary);
+  }
+  /* 文件已选中状态 */
+  .btn-upload.has-file {
+    border-color: var(--green);
+    border-style: solid;
+    color: var(--green);
+    background: var(--green-pale);
+  }
+  /* 隐藏原生 file input */
+  .hidden-file-input {
+    position: absolute;
+    width: 0;
+    height: 0;
+    opacity: 0;
+    pointer-events: none;
+  }
+
   .input-wrapper {
     flex: 1;
     position: relative;
@@ -224,6 +265,7 @@
   .input-wrapper textarea::placeholder {
     color: var(--xtu-text-hint);
   }
+
   .btn-send {
     width: 56px;
     height: 56px;
@@ -236,55 +278,56 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: background 0.2s;
+    transition: background 0.2s, opacity 0.2s;
     flex-shrink: 0;
   }
   .btn-send:hover { background: var(--xtu-primary-light); }
   .btn-send:disabled { opacity: 0.4; cursor: not-allowed; }
 
-  /* ========== 上传按钮 ========== */
-  .btn-upload {
-    width: 56px;
-    height: 56px;
-    border-radius: var(--xtu-radius);
-    border: 2px dashed var(--xtu-border);
-    background: var(--xtu-surface);
-    color: var(--xtu-text-hint);
-    font-size: 24px;
-    cursor: pointer;
-    display: flex;
+  /* ========== 文件标签 — 显示在输入框上方 ========== */
+  .file-preview {
+    display: none;
     align-items: center;
-    justify-content: center;
-    transition: all 0.2s;
-    flex-shrink: 0;
-    position: relative;
-    overflow: hidden;
-  }
-  .btn-upload:hover { border-color: var(--xtu-primary-light); color: var(--xtu-primary); }
-  .btn-upload input[type=file] {
-    position: absolute;
-    width: 100%;
-    height: 100%;
-    opacity: 0;
-    cursor: pointer;
-  }
-
-  /* ========== 文件标签 ========== */
-  .file-tag {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    background: var(--xtu-primary-pale);
-    color: var(--xtu-primary);
-    padding: 6px 14px;
+    gap: 8px;
+    background: var(--green-pale);
+    border: 1px solid var(--green);
     border-radius: 8px;
+    padding: 8px 14px;
+    margin-bottom: 8px;
     font-size: 16px;
-    margin-top: 8px;
+    color: var(--green);
+    animation: fadeIn 0.3s ease;
   }
-  .file-tag .remove {
+  .file-preview.visible {
+    display: flex;
+  }
+  .file-preview-icon {
+    font-size: 20px;
+    flex-shrink: 0;
+  }
+  .file-preview-name {
+    flex: 1;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .file-preview-size {
+    color: var(--xtu-text-hint);
+    font-size: 14px;
+    flex-shrink: 0;
+  }
+  .file-preview-remove {
     cursor: pointer;
     font-weight: 700;
+    font-size: 18px;
+    color: var(--xtu-text-hint);
     margin-left: 4px;
+    transition: color 0.2s;
+    flex-shrink: 0;
+  }
+  .file-preview-remove:hover {
+    color: var(--xtu-primary);
   }
 
   /* ========== 加载动画 ========== */
@@ -308,6 +351,12 @@
   @keyframes fadeIn {
     from { opacity: 0; transform: translateY(8px); }
     to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ========== 拖拽高亮 ========== */
+  .input-wrapper.drag-over textarea {
+    border-color: var(--green);
+    background: var(--green-pale);
   }
 
   /* ========== 响应式 ========== */
@@ -363,35 +412,54 @@
       在此上传您的论文初稿，支持格式 <strong>.docx .pdf .txt .md</strong> &nbsp;|&nbsp;
       也可直接输入论文路径或文本内容
     </div>
+
+    <!-- 文件预览条 (选中文件后显示) -->
+    <div class="file-preview" id="filePreview">
+      <span class="file-preview-icon">📄</span>
+      <span class="file-preview-name" id="filePreviewName"></span>
+      <span class="file-preview-size" id="filePreviewSize"></span>
+      <span class="file-preview-remove" id="filePreviewRemove" title="移除文件">✕</span>
+    </div>
+
     <div class="input-row">
-      <label class="btn-upload" title="上传论文文件">
-        ＋
-        <input type="file" id="fileInput" accept=".docx,.pdf,.txt,.md">
-      </label>
-      <div class="input-wrapper">
+      <!-- 上传按钮 (独立于 file input) -->
+      <button class="btn-upload" id="btnUpload" type="button" title="上传论文文件">＋</button>
+      <!-- 隐藏的 file input -->
+      <input type="file" id="fileInput" class="hidden-file-input" accept=".docx,.pdf,.txt,.md">
+
+      <div class="input-wrapper" id="inputWrapper">
         <textarea id="msgInput" rows="1" placeholder="请输入论文路径，或直接粘贴论文文本…"></textarea>
       </div>
-      <button class="btn-send" id="btnSend" title="发送">➤</button>
+      <button class="btn-send" id="btnSend" type="button" title="发送">➤</button>
     </div>
-    <div id="fileTagArea"></div>
   </div>
 </div>
 
 <script>
 (function() {
-  const chatArea = document.getElementById('chatArea');
-  const msgInput = document.getElementById('msgInput');
-  const btnSend  = document.getElementById('btnSend');
-  const fileInput = document.getElementById('fileInput');
-  const fileTagArea = document.getElementById('fileTagArea');
-  const welcomeSection = document.getElementById('welcomeSection');
+  'use strict';
 
-  let pendingFile = null;
-  let pendingFilePath = null;
-  let sessionId = generateSessionId();
+  /* ========== DOM 引用 ========== */
+  var chatArea      = document.getElementById('chatArea');
+  var msgInput      = document.getElementById('msgInput');
+  var btnSend       = document.getElementById('btnSend');
+  var btnUpload     = document.getElementById('btnUpload');
+  var fileInput     = document.getElementById('fileInput');
+  var inputWrapper  = document.getElementById('inputWrapper');
+  var filePreview   = document.getElementById('filePreview');
+  var filePreviewName = document.getElementById('filePreviewName');
+  var filePreviewSize = document.getElementById('filePreviewSize');
+  var filePreviewRemove = document.getElementById('filePreviewRemove');
+  var welcomeSection = document.getElementById('welcomeSection');
 
-  // ---- 工具函数 ----
-  function generateSessionId() {
+  /* ========== 状态 ========== */
+  var pendingFile     = null;   // File 对象
+  var pendingFilePath = null;   // 服务器返回的路径
+  var sessionId       = genSid();
+  var isSending       = false;
+
+  /* ========== 工具函数 ========== */
+  function genSid() {
     return 'sess_' + Math.random().toString(36).slice(2, 10);
   }
 
@@ -403,44 +471,10 @@
     if (welcomeSection) welcomeSection.style.display = 'none';
   }
 
-  // ---- 添加消息 ----
-  function addMessage(role, text) {
-    hideWelcome();
-    const row = document.createElement('div');
-    row.className = 'msg-row ' + role;
-    const avatar = document.createElement('div');
-    avatar.className = 'msg-avatar';
-    avatar.textContent = role === 'user' ? '您' : '法';
-    const bubble = document.createElement('div');
-    bubble.className = 'msg-bubble';
-    bubble.innerHTML = formatText(text);
-    row.appendChild(avatar);
-    row.appendChild(bubble);
-    chatArea.appendChild(row);
-    scrollToBottom();
-    return bubble;
-  }
-
-  function addTypingIndicator() {
-    hideWelcome();
-    const row = document.createElement('div');
-    row.className = 'msg-row assistant';
-    row.id = 'typingRow';
-    const avatar = document.createElement('div');
-    avatar.className = 'msg-avatar';
-    avatar.textContent = '法';
-    const bubble = document.createElement('div');
-    bubble.className = 'msg-bubble typing-indicator';
-    bubble.innerHTML = '<span></span><span></span><span></span>';
-    row.appendChild(avatar);
-    row.appendChild(bubble);
-    chatArea.appendChild(row);
-    scrollToBottom();
-  }
-
-  function removeTypingIndicator() {
-    const el = document.getElementById('typingRow');
-    if (el) el.remove();
+  function formatSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
   }
 
   function formatText(text) {
@@ -453,88 +487,199 @@
       .replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank">$1</a>');
   }
 
-  // ---- 文件上传 ----
-  fileInput.addEventListener('change', function() {
-    const file = this.files[0];
-    if (!file) return;
-    pendingFile = file;
-    pendingFilePath = null;
-    fileTagArea.innerHTML = '<span class="file-tag">📄 ' + file.name +
-      ' <span class="remove" onclick="clearFile()">✕</span></span>';
+  /* ========== 消息渲染 ========== */
+  function addMessage(role, text) {
+    hideWelcome();
+    var row = document.createElement('div');
+    row.className = 'msg-row ' + role;
+    var avatar = document.createElement('div');
+    avatar.className = 'msg-avatar';
+    avatar.textContent = role === 'user' ? '您' : '法';
+    var bubble = document.createElement('div');
+    bubble.className = 'msg-bubble';
+    bubble.innerHTML = formatText(text);
+    row.appendChild(avatar);
+    row.appendChild(bubble);
+    chatArea.appendChild(row);
+    scrollToBottom();
+    return bubble;
+  }
+
+  function addTypingIndicator() {
+    hideWelcome();
+    var row = document.createElement('div');
+    row.className = 'msg-row assistant';
+    row.id = 'typingRow';
+    var avatar = document.createElement('div');
+    avatar.className = 'msg-avatar';
+    avatar.textContent = '法';
+    var bubble = document.createElement('div');
+    bubble.className = 'msg-bubble typing-indicator';
+    bubble.innerHTML = '<span></span><span></span><span></span>';
+    row.appendChild(avatar);
+    row.appendChild(bubble);
+    chatArea.appendChild(row);
+    scrollToBottom();
+  }
+
+  function removeTypingIndicator() {
+    var el = document.getElementById('typingRow');
+    if (el) el.remove();
+  }
+
+  /* ========== 文件选择 — 核心修复 ========== */
+
+  // 点击 + 按钮触发文件选择
+  btnUpload.addEventListener('click', function() {
+    // 先重置 value，确保同一文件也能触发 change
+    fileInput.value = '';
+    fileInput.click();
   });
 
-  window.clearFile = function() {
+  // 文件选中后 — 同时监听 change 和 input 事件（双保险）
+  fileInput.addEventListener('change', onFileSelected);
+  fileInput.addEventListener('input', onFileSelected);
+
+  function onFileSelected(e) {
+    var files = fileInput.files;
+    if (!files || files.length === 0) {
+      // 某些浏览器在取消选择时也会触发，此时忽略
+      return;
+    }
+    var file = files[0];
+    if (!file) return;
+
+    pendingFile = file;
+    pendingFilePath = null;
+
+    // 更新 UI：文件预览条
+    filePreviewName.textContent = file.name;
+    filePreviewSize.textContent = formatSize(file.size);
+    filePreview.classList.add('visible');
+
+    // 更新 UI：+ 按钮变绿 ✓
+    btnUpload.textContent = '✓';
+    btnUpload.classList.add('has-file');
+
+    // 更新 placeholder 提示
+    msgInput.placeholder = '文件已就绪，点击发送开始审查，或输入补充说明…';
+
+    // 聚焦到输入框方便用户输入补充说明
+    msgInput.focus();
+  }
+
+  // 移除已选文件
+  filePreviewRemove.addEventListener('click', clearFile);
+
+  function clearFile() {
     pendingFile = null;
     pendingFilePath = null;
     fileInput.value = '';
-    fileTagArea.innerHTML = '';
-  };
-
-  // ---- 上传文件到服务器 ----
-  async function uploadFile(file) {
-    const formData = new FormData();
-    formData.append('file', file);
-    try {
-      const resp = await fetch('/upload', { method: 'POST', body: formData });
-      if (!resp.ok) throw new Error('上传失败 (HTTP ' + resp.status + ')');
-      const result = await resp.json();
-      if (result.success && result.file_path) {
-        return result.file_path;
-      } else {
-        throw new Error(result.error || '上传返回异常');
-      }
-    } catch(e) {
-      throw new Error('文件上传失败：' + e.message);
-    }
+    filePreview.classList.remove('visible');
+    btnUpload.textContent = '＋';
+    btnUpload.classList.remove('has-file');
+    msgInput.placeholder = '请输入论文路径，或直接粘贴论文文本…';
   }
 
-  // ---- 发送消息 ----
-  async function sendMessage() {
-    const text = msgInput.value.trim();
-    let userDisplayMsg = text;
-    let agentQuery = text;
+  /* ========== 拖拽上传 ========== */
+  inputWrapper.addEventListener('dragover', function(e) {
+    e.preventDefault();
+    inputWrapper.classList.add('drag-over');
+  });
+  inputWrapper.addEventListener('dragleave', function() {
+    inputWrapper.classList.remove('drag-over');
+  });
+  inputWrapper.addEventListener('drop', function(e) {
+    e.preventDefault();
+    inputWrapper.classList.remove('drag-over');
+    var files = e.dataTransfer && e.dataTransfer.files;
+    if (files && files.length > 0) {
+      // 模拟 fileInput 选中
+      pendingFile = files[0];
+      pendingFilePath = null;
+      filePreviewName.textContent = pendingFile.name;
+      filePreviewSize.textContent = formatSize(pendingFile.size);
+      filePreview.classList.add('visible');
+      btnUpload.textContent = '✓';
+      btnUpload.classList.add('has-file');
+      msgInput.placeholder = '文件已就绪，点击发送开始审查，或输入补充说明…';
+      msgInput.focus();
+    }
+  });
 
-    // 如果有待上传文件
+  /* ========== 上传文件到服务器 ========== */
+  function uploadFileToServer(file) {
+    var formData = new FormData();
+    formData.append('file', file);
+    return fetch('/upload', { method: 'POST', body: formData })
+      .then(function(resp) {
+        if (!resp.ok) throw new Error('上传失败 (HTTP ' + resp.status + ')');
+        return resp.json();
+      })
+      .then(function(result) {
+        if (result.success && result.file_path) {
+          return result.file_path;
+        } else {
+          throw new Error(result.error || '上传返回异常');
+        }
+      });
+  }
+
+  /* ========== 发送消息 ========== */
+  function sendMessage() {
+    if (isSending) return;
+
+    var text = msgInput.value.trim();
+    var agentQuery = text;
+
+    // 情况1：有待上传文件
     if (pendingFile) {
+      isSending = true;
       btnSend.disabled = true;
-      addMessage('user', '📄 上传文件：' + pendingFile.name + (text ? '\n' + text : ''));
 
-      // 显示上传中提示
+      var fileName = pendingFile.name;
+      addMessage('user', '📄 上传文件：' + fileName + (text ? '\n' + text : ''));
       addTypingIndicator();
-      try {
-        pendingFilePath = await uploadFile(pendingFile);
-        removeTypingIndicator();
-        agentQuery = '请审查这篇论文：' + pendingFilePath + (text ? '\n' + text : '');
-      } catch(e) {
-        removeTypingIndicator();
-        addMessage('assistant', '❌ 文件上传失败：' + e.message + '\n请直接输入论文路径重试。');
-        pendingFile = null;
-        pendingFilePath = null;
-        fileTagArea.innerHTML = '';
-        fileInput.value = '';
-        btnSend.disabled = false;
-        return;
-      }
-      pendingFile = null;
-      fileTagArea.innerHTML = '';
-      fileInput.value = '';
-    } else {
-      if (!agentQuery) return;
-      addMessage('user', agentQuery);
+
+      uploadFileToServer(pendingFile)
+        .then(function(path) {
+          removeTypingIndicator();
+          pendingFilePath = path;
+          agentQuery = '请审查这篇论文：' + path + (text ? '\n' + text : '');
+          clearFile();
+          return streamCall(agentQuery);
+        })
+        .catch(function(err) {
+          removeTypingIndicator();
+          addMessage('assistant', '❌ 文件上传失败：' + err.message + '\n请直接输入论文路径重试。');
+          clearFile();
+        })
+        .finally(function() {
+          isSending = false;
+          btnSend.disabled = false;
+        });
+
+      msgInput.value = '';
+      return;
     }
 
-    msgInput.value = '';
+    // 情况2：纯文本
+    if (!agentQuery) return;  // 没有文件也没有文字，静默返回
+
+    isSending = true;
     btnSend.disabled = true;
-    addTypingIndicator();
+    addMessage('user', agentQuery);
+    msgInput.value = '';
 
-    try {
-      await streamCall(agentQuery);
-    } catch(e) {
-      removeTypingIndicator();
-      addMessage('assistant', '❌ 请求失败：' + e.message);
-    } finally {
-      btnSend.disabled = false;
-    }
+    streamCall(agentQuery)
+      .catch(function(err) {
+        removeTypingIndicator();
+        addMessage('assistant', '❌ 请求失败：' + err.message);
+      })
+      .finally(function() {
+        isSending = false;
+        btnSend.disabled = false;
+      });
   }
 
   btnSend.addEventListener('click', sendMessage);
@@ -545,12 +690,12 @@
     }
   });
 
-  // ---- 流式调用 (SSE) ----
-  async function streamCall(query) {
-    const responseBubble = addMessage('assistant', '');
-    let fullText = '';
+  /* ========== 流式调用 (SSE) ========== */
+  function streamCall(query) {
+    var responseBubble = addMessage('assistant', '');
+    var fullText = '';
 
-    const payload = {
+    var payload = {
       type: 'query',
       session_id: sessionId,
       content: {
@@ -560,105 +705,100 @@
       }
     };
 
-    const resp = await fetch('/stream_run', {
+    return fetch('/stream_run', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
-    });
-
-    if (!resp.ok) {
-      throw new Error('服务器返回错误 (HTTP ' + resp.status + ')');
-    }
-
-    const reader = resp.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
-
-      for (const line of lines) {
-        // SSE 格式: "data: {json}" 或 "event: xxx"
-        if (!line.startsWith('data: ')) continue;
-        const jsonStr = line.slice(6).trim();
-        if (!jsonStr) continue;
-
-        try {
-          const data = JSON.parse(jsonStr);
-
-          // Robust text extraction
-          let textChunk = '';
-
-          if (data.type === 'answer') {
-            if (data.content && typeof data.content.answer === 'string') {
-              textChunk = data.content.answer;
-            } else if (typeof data.content === 'string') {
-              textChunk = data.content;
-            } else if (data.answer && typeof data.answer === 'string') {
-              textChunk = data.answer;
-            } else if (data.text && typeof data.text === 'string') {
-              textChunk = data.text;
-            }
-          }
-
-          if (data.type === 'tool_request' || data.type === 'tool_response') {
-            const toolName = (data.content && data.content.tool_name)
-              || (data.content && data.content.name) || '';
-            if (toolName) {
-              textChunk = '🔧 调用工具：' + toolName + '\n';
-            }
-          }
-
-          if (data.type === 'error') {
-            let errMsg = '未知错误';
-            if (data.content) {
-              if (typeof data.content === 'string') errMsg = data.content;
-              else if (data.content.error) {
-                if (typeof data.content.error === 'string') errMsg = data.content.error;
-                else if (data.content.error.message) errMsg = data.content.error.message;
-              }
-              else errMsg = JSON.stringify(data.content);
-            }
-            textChunk = '\n❌ 错误：' + errMsg;
-          }
-
-          if (data.type === 'message_end') {
-            // stream ended
-          }
-
-          if (textChunk) {
-            fullText += textChunk;
-            responseBubble.innerHTML = formatText(fullText);
-            scrollToBottom();
-          }
-
-        } catch(e) {
-          // non-JSON line, skip
-        }
-        }
+    })
+    .then(function(resp) {
+      if (!resp.ok) throw new Error('服务器返回错误 (HTTP ' + resp.status + ')');
+      return readSSEStream(resp, function(textChunk) {
+        fullText += textChunk;
+        responseBubble.innerHTML = formatText(fullText);
+        scrollToBottom();
+      });
+    })
+    .then(function() {
+      removeTypingIndicator();
+      if (!fullText) {
+        responseBubble.innerHTML = formatText('审查完成，但未收到文本回复。请尝试重新发送。');
+      } else {
+        responseBubble.innerHTML = formatText(fullText);
       }
-    }
-
-    removeTypingIndicator();
-    if (!fullText) {
-      responseBubble.innerHTML = formatText('审查完成，但未收到文本回复。请尝试重新发送。');
-    } else {
-      // 最终渲染
-      responseBubble.innerHTML = formatText(fullText);
-    }
-    scrollToBottom();
+      scrollToBottom();
+    });
   }
 
-  // ---- 自动调整 textarea 高度 ----
+  function readSSEStream(resp, onChunk) {
+    var reader = resp.body.getReader();
+    var decoder = new TextDecoder();
+    var buffer = '';
+
+    return (function pump() {
+      return reader.read().then(function(result) {
+        if (result.done) return;
+
+        buffer += decoder.decode(result.value, { stream: true });
+        var lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (var i = 0; i < lines.length; i++) {
+          var line = lines[i];
+          if (line.indexOf('data: ') !== 0) continue;
+          var jsonStr = line.slice(6).trim();
+          if (!jsonStr) continue;
+
+          try {
+            var data = JSON.parse(jsonStr);
+            var textChunk = extractText(data);
+            if (textChunk) onChunk(textChunk);
+          } catch(e) {
+            // non-JSON line, skip
+          }
+        }
+
+        return pump();
+      });
+    })();
+  }
+
+  function extractText(data) {
+    // answer 事件
+    if (data.type === 'answer') {
+      if (data.content && typeof data.content.answer === 'string') return data.content.answer;
+      if (typeof data.content === 'string') return data.content;
+      if (typeof data.answer === 'string') return data.answer;
+      if (typeof data.text === 'string') return data.text;
+      return '';
+    }
+    // tool 事件
+    if (data.type === 'tool_request' || data.type === 'tool_response') {
+      var toolName = (data.content && data.content.tool_name)
+        || (data.content && data.content.name) || '';
+      return toolName ? '🔧 调用工具：' + toolName + '\n' : '';
+    }
+    // error 事件
+    if (data.type === 'error') {
+      var errMsg = '未知错误';
+      if (data.content) {
+        if (typeof data.content === 'string') errMsg = data.content;
+        else if (data.content.error) {
+          if (typeof data.content.error === 'string') errMsg = data.content.error;
+          else if (data.content.error.message) errMsg = data.content.error.message;
+        }
+        else errMsg = JSON.stringify(data.content);
+      }
+      return '\n❌ 错误：' + errMsg;
+    }
+    return '';
+  }
+
+  /* ========== 自动调整 textarea 高度 ========== */
   msgInput.addEventListener('input', function() {
     this.style.height = 'auto';
     this.style.height = Math.min(this.scrollHeight, 180) + 'px';
   });
+
 })();
 </script>
 </body>
