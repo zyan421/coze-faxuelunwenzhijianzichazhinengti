@@ -1,6 +1,6 @@
 {
   "config": {
-    "model": "doubao-seed-2-0-pro-260215",
+    "model": "deepseek-v3-2-251201",
     "temperature": 0.3,
     "top_p": 0.9,
     "max_completion_tokens": 16000,
@@ -14,5 +14,9 @@
     "generate_annotated_docx",
     "generate_markdown_report",
     "verify_fact"
-  ]
+  ],
+  "custom_model": {
+    "api_key": "",
+    "base_url": ""
+  }
 }

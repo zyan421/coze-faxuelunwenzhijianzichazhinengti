@@ -1017,11 +1017,13 @@ def build_agent(ctx=None):
     custom = cfg.get("custom_model", {})
     api_key = custom.get("api_key") or os.getenv("COZE_WORKLOAD_IDENTITY_API_KEY")
     base_url = custom.get("base_url") or os.getenv("COZE_INTEGRATION_MODEL_BASE_URL")
+    # 自定义模型名优先，否则用 config 中的默认模型
+    model_name = custom.get("model") or cfg["config"]["model"]
 
     thinking_cfg = cfg["config"].get("thinking", "disabled")
 
     llm = ChatOpenAI(
-        model=cfg["config"]["model"],
+        model=model_name,
         api_key=api_key,
         base_url=base_url,
         temperature=cfg["config"]["temperature"],

@@ -302,7 +302,7 @@ async def get_model_config():
             "config": {
                 "model": cfg["config"]["model"],
                 "custom_model": {
-                    "model": cfg["config"]["model"],
+                    "model": custom.get("model", cfg["config"]["model"]),
                     "base_url": custom.get("base_url", ""),
                     "api_key": masked,
                 }
@@ -324,26 +324,29 @@ async def save_model_config(request: Request):
         api_key = body.get("api_key", "").strip()
         base_url = body.get("base_url", "").strip()
 
-        if not model:
-            return JSONResponse({"success": False, "error": "模型名称不能为空"}, status_code=400)
-
         # 读取现有配置
         with open(config_path, "r", encoding="utf-8") as f:
             cfg = json.load(f)
 
-        # 更新配置
-        cfg["config"]["model"] = model
-        if api_key and api_key != "••••••••":
-            # 用户提供了自定义 API Key → BYOK 模式
-            cfg["custom_model"] = {
-                "api_key": api_key,
-                "base_url": base_url.rstrip("/")
-            }
-        elif not api_key and not cfg.get("custom_model", {}).get("api_key"):
-            # 无 API Key → 使用平台默认
-            if "custom_model" in cfg:
-                del cfg["custom_model"]["api_key"]
-                del cfg["custom_model"]["base_url"]
+        # 判断是"恢复默认"还是"自定义模型"
+        if not model and not api_key:
+            # 恢复平台默认模型
+            cfg["custom_model"] = {"model": "", "api_key": "", "base_url": ""}
+        elif not model:
+            return JSONResponse({"success": False, "error": "模型名称不能为空"}, status_code=400)
+        else:
+            # 用户指定了模型
+            cfg["config"]["model"] = model
+            if api_key and api_key != "••••••••":
+                # 用户提供了自定义 API Key → BYOK 模式
+                cfg["custom_model"] = {
+                    "model": model,
+                    "api_key": api_key,
+                    "base_url": base_url.rstrip("/")
+                }
+            else:
+                # 无 API Key → 使用平台默认认证
+                cfg["custom_model"] = {"model": model, "api_key": "", "base_url": ""}
 
         # 写入配置
         with open(config_path, "w", encoding="utf-8") as f:
@@ -369,6 +372,79 @@ async def save_model_config(request: Request):
     except Exception as e:
         logger.error(f"Failed to save model config: {e}")
         return JSONResponse({"success": False, "error": str(e)}, status_code=500)
+
+
+@app.post("/api/test-model")
+async def test_model_connectivity(request: Request):
+    """测试模型 API 连通性，发送一个最简单的 chat completion 请求验证 Key 和模型名"""
+    try:
+        body = await request.json()
+        model = body.get("model", "").strip()
+        api_key = body.get("api_key", "").strip()
+        base_url = body.get("base_url", "").strip()
+
+        if not model:
+            return JSONResponse({"success": False, "error": "模型名称不能为空"})
+        if not api_key:
+            return JSONResponse({"success": False, "error": "API Key 不能为空"})
+
+        # 如果没有指定 base_url，尝试从当前配置或环境变量获取
+        if not base_url:
+            workspace = os.getenv("COZE_WORKSPACE_PATH", "/workspace/projects")
+            config_path = os.path.join(workspace, "config", "agent_llm_config.json")
+            try:
+                with open(config_path, "r", encoding="utf-8") as f:
+                    cfg = json.load(f)
+                base_url = cfg.get("custom_model", {}).get("base_url", "")
+            except:
+                pass
+            if not base_url:
+                base_url = os.getenv("COZE_INTEGRATION_MODEL_BASE_URL", "")
+
+        # 构造 OpenAI 兼容的 chat completion 请求
+        import httpx
+        url = base_url.rstrip("/") + "/chat/completions"
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "model": model,
+            "messages": [{"role": "user", "content": "Hello, reply with OK."}],
+            "max_tokens": 10,
+            "stream": False
+        }
+
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            resp = await client.post(url, json=payload, headers=headers)
+
+        if resp.status_code == 200:
+            try:
+                data = resp.json()
+                preview = ""
+                choices = data.get("choices", [])
+                if choices:
+                    msg = choices[0].get("message", {})
+                    preview = msg.get("content", "")[:50]
+                return JSONResponse({"success": True, "model": model, "response_preview": preview})
+            except:
+                return JSONResponse({"success": True, "model": model})
+        else:
+            error_msg = f"HTTP {resp.status_code}"
+            try:
+                err_data = resp.json()
+                error_msg = err_data.get("error", {}).get("message", error_msg)
+                if not error_msg:
+                    error_msg = err_data.get("message", error_msg)
+            except:
+                error_msg = resp.text[:200] if resp.text else error_msg
+            return JSONResponse({"success": False, "error": error_msg, "status_code": resp.status_code})
+
+    except httpx.TimeoutException:
+        return JSONResponse({"success": False, "error": "连接超时（30秒），请检查 Base URL 是否正确"})
+    except Exception as e:
+        return JSONResponse({"success": False, "error": str(e)})
+
 
 # OpenAI 兼容接口处理器
 openai_handler = OpenAIChatHandler(service)
