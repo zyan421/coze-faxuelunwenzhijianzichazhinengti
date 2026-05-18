@@ -236,6 +236,23 @@ class GraphService:
 service = GraphService()
 app = FastAPI()
 
+# 自定义 UI 静态页面
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+import os as _os
+
+_ui_dir = _os.path.join(_os.getenv("COZE_WORKSPACE_PATH", "/workspace/projects"), "assets", "ui")
+if _os.path.isdir(_ui_dir):
+    app.mount("/ui", StaticFiles(directory=_ui_dir, html=True), name="ui")
+
+@app.get("/")
+async def serve_ui():
+    """默认页面跳转到自定义 UI"""
+    index_path = _os.path.join(_ui_dir, "index.html")
+    if _os.path.exists(index_path):
+        return FileResponse(index_path)
+    return JSONResponse({"status": "running", "ui": "/ui/"})
+
 # OpenAI 兼容接口处理器
 openai_handler = OpenAIChatHandler(service)
 

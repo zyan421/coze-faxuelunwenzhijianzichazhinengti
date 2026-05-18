@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>法学论文质检自查智能体</title>
+<style>
+  /* ========== 色彩体系 (参考湘潭大学法学学部 #9F191E) ========== */
+  :root {
+    --xtu-primary: #9F191E;        /* 湘大法学主色：酒红 */
+    --xtu-primary-light: #C44549;  /* 浅酒红 */
+    --xtu-primary-pale: #F5E9E9;   /* 极浅酒红背景 */
+    --xtu-primary-ghost: rgba(159,25,30,0.05); /* 酒红幽灵色 */
+    --xtu-accent-gold: #B8860B;    /* 暗金 — 轻奢点缀 */
+    --xtu-accent-gold-pale: #FAF5E6; /* 极浅金背景 */
+    --xtu-bg: #FAFAFA;
+    --xtu-surface: #FFFFFF;
+    --xtu-text: #2C2C2C;
+    --xtu-text-secondary: #666666;
+    --xtu-text-hint: #999999;
+    --xtu-border: #E8E0E0;
+    --xtu-shadow: 0 2px 16px rgba(159,25,30,0.06);
+    --xtu-radius: 12px;
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+
+  body {
+    font-family: "PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans SC",sans-serif;
+    background: var(--xtu-bg);
+    color: var(--xtu-text);
+    font-size: 18px;
+    line-height: 1.8;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ========== 顶部导航 ========== */
+  .topbar {
+    background: linear-gradient(135deg, var(--xtu-primary) 0%, #6B0F13 100%);
+    padding: 0 32px;
+    height: 64px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.12);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .topbar-logo {
+    height: 44px;
+    filter: brightness(0) invert(1);
+    /* logo will be an img tag */
+  }
+  .topbar-title {
+    color: #fff;
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: 2px;
+  }
+  .topbar-subtitle {
+    color: rgba(255,255,255,0.78);
+    font-size: 14px;
+    margin-left: auto;
+    letter-spacing: 1px;
+  }
+
+  /* ========== 主内容区 ========== */
+  .main-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    max-width: 960px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 32px 24px 0;
+  }
+
+  /* ========== 欢迎区域 ========== */
+  .welcome-section {
+    text-align: center;
+    padding: 48px 24px 36px;
+  }
+  .welcome-title {
+    font-size: 32px;
+    font-weight: 700;
+    color: var(--xtu-primary);
+    margin-bottom: 12px;
+    letter-spacing: 3px;
+  }
+  .welcome-slogan {
+    font-size: 20px;
+    color: var(--xtu-text-secondary);
+    letter-spacing: 1px;
+    font-weight: 400;
+  }
+  .welcome-slogan::before,
+  .welcome-slogan::after {
+    content: " · ";
+    color: var(--xtu-accent-gold);
+  }
+
+  /* ========== 图标装饰区 ========== */
+  .deco-icons {
+    display: flex;
+    justify-content: center;
+    gap: 40px;
+    padding: 24px 0 32px;
+    opacity: 0.18;
+  }
+  .deco-icons svg {
+    width: 48px;
+    height: 48px;
+    stroke: var(--xtu-primary);
+    fill: none;
+    stroke-width: 1.2;
+  }
+
+  /* ========== 对话区 ========== */
+  .chat-area {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px 0;
+  }
+  .msg-row {
+    display: flex;
+    margin-bottom: 20px;
+    gap: 12px;
+    animation: fadeIn 0.35s ease;
+  }
+  .msg-row.user { justify-content: flex-end; }
+  .msg-row.assistant { justify-content: flex-start; }
+
+  .msg-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    font-weight: 700;
+    color: #fff;
+  }
+  .msg-row.user .msg-avatar { background: var(--xtu-accent-gold); }
+  .msg-row.assistant .msg-avatar { background: var(--xtu-primary); }
+
+  .msg-bubble {
+    max-width: 72%;
+    padding: 16px 20px;
+    border-radius: var(--xtu-radius);
+    font-size: 18px;
+    line-height: 1.85;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .msg-row.user .msg-bubble {
+    background: var(--xtu-primary);
+    color: #fff;
+    border-bottom-right-radius: 4px;
+  }
+  .msg-row.assistant .msg-bubble {
+    background: var(--xtu-surface);
+    color: var(--xtu-text);
+    border: 1px solid var(--xtu-border);
+    border-bottom-left-radius: 4px;
+    box-shadow: var(--xtu-shadow);
+  }
+  .msg-bubble a {
+    color: var(--xtu-primary);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  /* ========== 输入区 ========== */
+  .input-section {
+    padding: 20px 0 28px;
+    position: sticky;
+    bottom: 0;
+    background: linear-gradient(to top, var(--xtu-bg) 80%, transparent);
+  }
+  .input-hint {
+    text-align: center;
+    font-size: 15px;
+    color: var(--xtu-text-hint);
+    margin-bottom: 10px;
+    letter-spacing: 0.5px;
+  }
+  .input-hint strong {
+    color: var(--xtu-primary);
+    font-weight: 600;
+  }
+  .input-row {
+    display: flex;
+    gap: 12px;
+    align-items: flex-end;
+  }
+  .input-wrapper {
+    flex: 1;
+    position: relative;
+  }
+  .input-wrapper textarea {
+    width: 100%;
+    min-height: 56px;
+    max-height: 180px;
+    padding: 14px 18px;
+    font-size: 18px;
+    line-height: 1.7;
+    border: 2px solid var(--xtu-border);
+    border-radius: var(--xtu-radius);
+    background: var(--xtu-surface);
+    color: var(--xtu-text);
+    resize: none;
+    outline: none;
+    transition: border-color 0.2s;
+    font-family: inherit;
+  }
+  .input-wrapper textarea:focus {
+    border-color: var(--xtu-primary-light);
+  }
+  .input-wrapper textarea::placeholder {
+    color: var(--xtu-text-hint);
+  }
+  .btn-send {
+    width: 56px;
+    height: 56px;
+    border-radius: var(--xtu-radius);
+    border: none;
+    background: var(--xtu-primary);
+    color: #fff;
+    font-size: 22px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s;
+    flex-shrink: 0;
+  }
+  .btn-send:hover { background: var(--xtu-primary-light); }
+  .btn-send:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* ========== 上传按钮 ========== */
+  .btn-upload {
+    width: 56px;
+    height: 56px;
+    border-radius: var(--xtu-radius);
+    border: 2px dashed var(--xtu-border);
+    background: var(--xtu-surface);
+    color: var(--xtu-text-hint);
+    font-size: 24px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    flex-shrink: 0;
+    position: relative;
+    overflow: hidden;
+  }
+  .btn-upload:hover { border-color: var(--xtu-primary-light); color: var(--xtu-primary); }
+  .btn-upload input[type=file] {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
+  }
+
+  /* ========== 文件标签 ========== */
+  .file-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--xtu-primary-pale);
+    color: var(--xtu-primary);
+    padding: 6px 14px;
+    border-radius: 8px;
+    font-size: 16px;
+    margin-top: 8px;
+  }
+  .file-tag .remove {
+    cursor: pointer;
+    font-weight: 700;
+    margin-left: 4px;
+  }
+
+  /* ========== 加载动画 ========== */
+  .typing-indicator span {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    background: var(--xtu-primary-light);
+    border-radius: 50%;
+    margin: 0 3px;
+    animation: bounce 1.4s infinite ease-in-out both;
+  }
+  .typing-indicator span:nth-child(1) { animation-delay: 0s; }
+  .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+  .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+
+  @keyframes bounce {
+    0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+    40% { transform: scale(1); opacity: 1; }
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ========== 响应式 ========== */
+  @media (max-width: 640px) {
+    .main-container { padding: 16px 12px 0; }
+    .welcome-title { font-size: 24px; }
+    .welcome-slogan { font-size: 16px; }
+    .msg-bubble { max-width: 85%; font-size: 16px; }
+    .topbar-title { font-size: 18px; }
+    .topbar-subtitle { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ===== 顶部导航 ===== -->
+<div class="topbar">
+  <img src="https://law.xtu.edu.cn/v24/images/head/logo.png"
+       alt="湘潭大学法学学部"
+       class="topbar-logo"
+       onerror="this.style.display='none'">
+  <span class="topbar-title">法学论文质检自查智能体</span>
+  <span class="topbar-subtitle">湘潭大学法学学部</span>
+</div>
+
+<!-- ===== 主内容 ===== -->
+<div class="main-container">
+
+  <!-- 欢迎区 -->
+  <div class="welcome-section" id="welcomeSection">
+    <div class="welcome-title">法学论文质检自查智能体</div>
+    <div class="welcome-slogan">让沟通聚焦学术真问题，让论文写作提质增效</div>
+
+    <!-- 浅色学术图示 -->
+    <div class="deco-icons">
+      <!-- 天平 (法律) -->
+      <svg viewBox="0 0 24 24"><path d="M12 3v18M3 7l9-4 9 4M3 7l3 7h0a3 3 0 006 0h0l-3-7M21 7l-3 7h0a3 3 0 01-6 0h0l3-7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <!-- 书本 (学术) -->
+      <svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 016.5 17H20M4 19.5V5a2.5 2.5 0 012.5-2.5H20v15M4 19.5A2.5 2.5 0 006.5 22H20V7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <!-- 搜索 (审查) -->
+      <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65" stroke-linecap="round"/></svg>
+      <!-- 钢笔 (写作) -->
+      <svg viewBox="0 0 24 24"><path d="M17 3a2.85 2.85 0 114 4L7.5 20.5 2 22l1.5-5.5Z" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </div>
+  </div>
+
+  <!-- 对话区 -->
+  <div class="chat-area" id="chatArea"></div>
+
+  <!-- 输入区 -->
+  <div class="input-section">
+    <div class="input-hint">
+      在此上传您的论文初稿，支持格式 <strong>.docx .pdf .txt .md</strong> &nbsp;|&nbsp;
+      也可直接输入论文路径或文本内容
+    </div>
+    <div class="input-row">
+      <label class="btn-upload" title="上传论文文件">
+        ＋
+        <input type="file" id="fileInput" accept=".docx,.pdf,.txt,.md">
+      </label>
+      <div class="input-wrapper">
+        <textarea id="msgInput" rows="1" placeholder="请输入论文路径，或直接粘贴论文文本…"></textarea>
+      </div>
+      <button class="btn-send" id="btnSend" title="发送">➤</button>
+    </div>
+    <div id="fileTagArea"></div>
+  </div>
+</div>
+
+<script>
+(function() {
+  const chatArea = document.getElementById('chatArea');
+  const msgInput = document.getElementById('msgInput');
+  const btnSend  = document.getElementById('btnSend');
+  const fileInput = document.getElementById('fileInput');
+  const fileTagArea = document.getElementById('fileTagArea');
+  const welcomeSection = document.getElementById('welcomeSection');
+
+  let pendingFile = null;
+  let sessionId = generateSessionId();
+
+  // ---- 工具函数 ----
+  function generateSessionId() {
+    return 'sess_' + Math.random().toString(36).slice(2, 10);
+  }
+
+  function scrollToBottom() {
+    chatArea.scrollTop = chatArea.scrollHeight;
+  }
+
+  function hideWelcome() {
+    if (welcomeSection) welcomeSection.style.display = 'none';
+  }
+
+  // ---- 添加消息 ----
+  function addMessage(role, text) {
+    hideWelcome();
+    const row = document.createElement('div');
+    row.className = `msg-row ${role}`;
+    const avatar = document.createElement('div');
+    avatar.className = 'msg-avatar';
+    avatar.textContent = role === 'user' ? '您' : '法';
+    const bubble = document.createElement('div');
+    bubble.className = 'msg-bubble';
+    bubble.innerHTML = formatText(text);
+    row.appendChild(avatar);
+    row.appendChild(bubble);
+    chatArea.appendChild(row);
+    scrollToBottom();
+    return bubble;
+  }
+
+  function addTypingIndicator() {
+    hideWelcome();
+    const row = document.createElement('div');
+    row.className = 'msg-row assistant';
+    row.id = 'typingRow';
+    const avatar = document.createElement('div');
+    avatar.className = 'msg-avatar';
+    avatar.textContent = '法';
+    const bubble = document.createElement('div');
+    bubble.className = 'msg-bubble typing-indicator';
+    bubble.innerHTML = '<span></span><span></span><span></span>';
+    row.appendChild(avatar);
+    row.appendChild(bubble);
+    chatArea.appendChild(row);
+    scrollToBottom();
+  }
+
+  function removeTypingIndicator() {
+    const el = document.getElementById('typingRow');
+    if (el) el.remove();
+  }
+
+  function formatText(text) {
+    // Simple markdown-like formatting
+    return text
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+      .replace(/`(.*?)`/g, '<code style="background:#f0f0f0;padding:2px 6px;border-radius:4px;font-size:0.9em">$1</code>')
+      .replace(/\n/g, '<br>')
+      .replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank">$1</a>');
+  }
+
+  // ---- 文件上传 ----
+  fileInput.addEventListener('change', function() {
+    const file = this.files[0];
+    if (!file) return;
+    pendingFile = file;
+    fileTagArea.innerHTML = `<span class="file-tag">📄 ${file.name} <span class="remove" onclick="clearFile()">✕</span></span>`;
+  });
+
+  window.clearFile = function() {
+    pendingFile = null;
+    fileInput.value = '';
+    fileTagArea.innerHTML = '';
+  };
+
+  // ---- 发送消息 ----
+  async function sendMessage() {
+    const text = msgInput.value.trim();
+    let userMsg = text;
+
+    if (pendingFile) {
+      userMsg = userMsg ? `${pendingFile.name}\n${userMsg}` : `请审查论文：${pendingFile.name}`;
+      // In a real deployment, the file would be uploaded to S3 first
+      // For now, pass filename as the message
+    }
+
+    if (!userMsg) return;
+
+    addMessage('user', userMsg);
+    msgInput.value = '';
+    pendingFile = null;
+    fileTagArea.innerHTML = '';
+    fileInput.value = '';
+
+    btnSend.disabled = true;
+    addTypingIndicator();
+
+    try {
+      await streamCall(userMsg);
+    } catch(e) {
+      removeTypingIndicator();
+      addMessage('assistant', '❌ 请求失败：' + e.message);
+    } finally {
+      btnSend.disabled = false;
+    }
+  }
+
+  btnSend.addEventListener('click', sendMessage);
+  msgInput.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  });
+
+  // ---- 流式调用 ----
+  async function streamCall(query) {
+    const responseBubble = addMessage('assistant', '');
+    let fullText = '';
+
+    const payload = {
+      type: 'query',
+      session_id: sessionId,
+      content: {
+        query: {
+          prompt: [{ type: 'text', content: { text: query } }]
+        }
+      }
+    };
+
+    const resp = await fetch('/stream_run', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || '';
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        try {
+          const data = JSON.parse(line.slice(6));
+          if (data.type === 'answer' && data.content) {
+            fullText += data.content;
+            responseBubble.innerHTML = formatText(fullText);
+            scrollToBottom();
+          }
+        } catch(e) { /* skip non-JSON lines */ }
+      }
+    }
+
+    removeTypingIndicator();
+    if (!fullText) {
+      responseBubble.innerHTML = formatText('审查完成，但未收到文本回复。');
+    }
+  }
+
+  // ---- 自动调整 textarea 高度 ----
+  msgInput.addEventListener('input', function() {
+    this.style.height = 'auto';
+    this.style.height = Math.min(this.scrollHeight, 180) + 'px';
+  });
+})();
+</script>
+</body>
+</html>
