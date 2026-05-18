@@ -135,6 +135,9 @@ class GraphService:
         else:
             run_config = init_run_config(graph, ctx)  # vibeflow
 
+        # 设置递归上限，防止 Agent 无限循环（默认25太大，改为15）
+        run_config["recursion_limit"] = 15
+
         is_workflow = not graph_helper.is_agent_proj()
 
         try:

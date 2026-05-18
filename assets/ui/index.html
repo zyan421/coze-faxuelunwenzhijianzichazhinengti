@@ -430,13 +430,16 @@ function setStatus(state, text) {
   dot.className = 'status-dot ' + state;
   txt.textContent = text;
   if (state === 'working') {
-    streamStartTime = Date.now();
-    el.style.display = '';
-    elapsedTimer = setInterval(() => {
-      const sec = Math.floor((Date.now() - streamStartTime) / 1000);
-      const m = Math.floor(sec / 60), s = sec % 60;
-      el.textContent = `⏱ ${m}:${String(s).padStart(2,'0')}`;
-    }, 1000);
+    // 只在首次 working 时启动计时器，后续只更新文字
+    if (!streamStartTime) streamStartTime = Date.now();
+    if (!elapsedTimer) {
+      el.style.display = '';
+      elapsedTimer = setInterval(() => {
+        const sec = Math.floor((Date.now() - streamStartTime) / 1000);
+        const m = Math.floor(sec / 60), s = sec % 60;
+        el.textContent = `⏱ ${m}:${String(s).padStart(2,'0')}`;
+      }, 1000);
+    }
   } else {
     if (elapsedTimer) { clearInterval(elapsedTimer); elapsedTimer = null; }
     el.style.display = 'none';
@@ -596,34 +599,46 @@ function addProgressPanel() {
 function addProgressStep(toolName) {
   if (!progressPanel) return;
   const label = TOOL_LABELS[toolName] || toolName;
+  // 统计同名步骤总数（含 active + done），用序号区分
+  const sameSteps = progressPanel.querySelectorAll(`[data-tool="${toolName}"]`);
+  const retryIdx = sameSteps.length;
+  const displayLabel = retryIdx > 0 ? `${label} (第${retryIdx+1}次)` : label;
   const step = document.createElement('div');
   step.className = 'progress-step active';
   step.dataset.tool = toolName;
+  step.dataset.stepIndex = retryIdx;  // 唯一序号
   const elapsedSpan = document.createElement('span');
   elapsedSpan.className = 'step-elapsed';
   elapsedSpan.style.cssText = 'font-size:11px;color:#B8860B;margin-left:6px';
   elapsedSpan.textContent = '0s';
-  step.innerHTML = `<span class="icon">⏳</span> ${label}`;
+  step.innerHTML = `<span class="icon">⏳</span> ${displayLabel}`;
   step.appendChild(elapsedSpan);
   progressPanel.appendChild(step);
   progressPanel.scrollIntoView({behavior:'smooth'});
-  // Live elapsed time for this step
+  // Live elapsed time for this step (use unique key to avoid timer collision)
+  const timerKey = toolName + '_' + retryIdx;
   const t0 = Date.now();
-  stepTimerIds[toolName] = setInterval(() => {
+  stepTimerIds[timerKey] = setInterval(() => {
     const sec = Math.floor((Date.now() - t0) / 1000);
     if (sec < 60) { elapsedSpan.textContent = sec + 's'; }
     else { elapsedSpan.textContent = Math.floor(sec/60) + 'm' + (sec%60) + 's'; }
   }, 1000);
+  step.dataset.timerKey = timerKey;
 }
 
 function completeProgressStep(toolName, duration) {
   if (!progressPanel) return;
+  // 找到该工具最早的 active 步骤并完成
   const step = progressPanel.querySelector(`[data-tool="${toolName}"].active`);
   if (!step) return;
+  const idx = step.dataset.stepIndex || '0';
+  const label = TOOL_LABELS[toolName] || toolName;
+  const displayLabel = parseInt(idx) > 0 ? `${label} (第${parseInt(idx)+1}次)` : label;
   step.className = 'progress-step done';
-  step.innerHTML = `<span class="icon">✅</span> ${TOOL_LABELS[toolName] || toolName} 完成 (${duration.toFixed(1)}s)`;
-  // Clear elapsed timer
-  if (stepTimerIds[toolName]) { clearInterval(stepTimerIds[toolName]); delete stepTimerIds[toolName]; }
+  step.innerHTML = `<span class="icon">✅</span> ${displayLabel} 完成 (${duration.toFixed(1)}s)`;
+  // Clear elapsed timer using unique key
+  const timerKey = step.dataset.timerKey || toolName;
+  if (stepTimerIds[timerKey]) { clearInterval(stepTimerIds[timerKey]); delete stepTimerIds[timerKey]; }
 }
 
 function finishProgress() {
@@ -703,6 +718,7 @@ async function startStream(query, bubble) {
 
   let fullAnswer = '';
   let hasProgress = false;
+  let pendingToolCalls = [];
   let toolStartTime = {};
   const toolDuration = {};
   let lastToolCompleted = '';
@@ -815,19 +831,23 @@ async function startStream(query, bubble) {
           const tr = c.tool_request || {};
           const toolName = tr.tool_name || '';
           if (!hasProgress) { addProgressPanel(); hasProgress = true; }
+          // 循环检测：同一工具连续调用3次以上则警告
+          const sameToolCount = pendingToolCalls.filter(c => c.name === toolName).length +
+            (progressPanel ? progressPanel.querySelectorAll(`[data-tool="${toolName}"].done`).length : 0);
+          if (sameToolCount >= 2) {
+            appendToBubble(bubble, `<div style="color:#e65100;font-size:13px;margin:6px 0;padding:6px 10px;background:#fff3e0;border-radius:6px">⚠️ 检测到「${TOOL_LABELS[toolName] || toolName}」被重复调用 ${sameToolCount+1} 次，模型可能在循环重试。建议刷新页面重新开始，或在模型设置中换用更强的模型。</div>`);
+          }
           addProgressStep(toolName);
-          toolStartTime[toolName] = Date.now();
+          // 用有序数组追踪，支持同一工具多次调用
+          pendingToolCalls.push({ name: toolName, startTime: Date.now() });
           setStatus('working', TOOL_LABELS[toolName] || toolName);
         } else if (type === 'tool_response') {
-          const c = data.content || {};
-          const tr = c.tool_response || {};
-          for (const tn of Object.keys(toolStartTime)) {
-            if (!(tn in toolDuration)) {
-              toolDuration[tn] = (Date.now() - toolStartTime[tn]) / 1000;
-              completeProgressStep(tn, toolDuration[tn]);
-              lastToolCompleted = tn;
-              break;
-            }
+          // 匹配最早未完成的 tool_request
+          if (pendingToolCalls.length > 0) {
+            const call = pendingToolCalls.shift();
+            const dur = (Date.now() - call.startTime) / 1000;
+            completeProgressStep(call.name, dur);
+            lastToolCompleted = call.name;
           }
           // After tool completes, AI will think again
           setStatus('working', 'Agent 分析结果中...');
