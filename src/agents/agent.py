@@ -882,7 +882,7 @@ def build_agent(ctx=None):
         temperature=cfg["config"]["temperature"],
         streaming=True,
         timeout=cfg["config"]["timeout"],
-        extra_body={"thinking": {"type": cfg["config"]["thinking"]}},
+        extra_body={},
         default_headers=default_headers(ctx) if ctx else {}
     )
 

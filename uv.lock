@@ -2041,6 +2041,15 @@ wheels = [
 ]
 
 [[package]]
+name = "python-multipart"
+version = "0.0.29"
+source = { registry = "https://mirrors.aliyun.com/pypi/simple/" }
+sdist = { url = "https://mirrors.aliyun.com/pypi/packages/4e/fe/70bd71a6738b09a0bdf6480ca6436b167469ca4578b2a0efbe390b4b0e70/python_multipart-0.0.29.tar.gz", hash = "sha256:643e93849196645e2dbdd81a0f8829a23123ad7f797a84a364c6fb3563f18904" }
+wheels = [
+    { url = "https://mirrors.aliyun.com/pypi/packages/8f/cb/769cfc37177252872a45a71f3fbdde9d51b471a3f3c14bfe95dde3407386/python_multipart-0.0.29-py3-none-any.whl", hash = "sha256:2ddcc971cef266225f54f552d8fa10bcfbb1f14446caec199060daac59ff2d69" },
+]
+
+[[package]]
 name = "python-pptx"
 version = "1.0.2"
 source = { registry = "https://mirrors.aliyun.com/pypi/simple/" }
@@ -2707,6 +2716,7 @@ dependencies = [
     { name = "pymupdf" },
     { name = "pypdf" },
     { name = "python-dotenv" },
+    { name = "python-multipart" },
     { name = "python-pptx" },
     { name = "rich" },
     { name = "sqlalchemy" },
@@ -2747,6 +2757,7 @@ requires-dist = [
     { name = "pymupdf", specifier = ">=1.27.2.3" },
     { name = "pypdf", specifier = ">=6.4,<7" },
     { name = "python-dotenv", specifier = ">=1.2,<2" },
+    { name = "python-multipart", specifier = ">=0.0.29" },
     { name = "python-pptx", specifier = ">=1.0,<2" },
     { name = "rich", specifier = ">=14,<15" },
     { name = "sqlalchemy", specifier = ">=2.0,<3" },

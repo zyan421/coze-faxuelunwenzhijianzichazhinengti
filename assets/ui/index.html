@@ -387,6 +387,7 @@
   const welcomeSection = document.getElementById('welcomeSection');
 
   let pendingFile = null;
+  let pendingFilePath = null;
   let sessionId = generateSessionId();
 
   // ---- 工具函数 ----
@@ -406,7 +407,7 @@
   function addMessage(role, text) {
     hideWelcome();
     const row = document.createElement('div');
-    row.className = `msg-row ${role}`;
+    row.className = 'msg-row ' + role;
     const avatar = document.createElement('div');
     avatar.className = 'msg-avatar';
     avatar.textContent = role === 'user' ? '您' : '法';
@@ -443,7 +444,7 @@
   }
 
   function formatText(text) {
-    // Simple markdown-like formatting
+    if (typeof text !== 'string') return '';
     return text
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
       .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
@@ -457,39 +458,77 @@
     const file = this.files[0];
     if (!file) return;
     pendingFile = file;
-    fileTagArea.innerHTML = `<span class="file-tag">📄 ${file.name} <span class="remove" onclick="clearFile()">✕</span></span>`;
+    pendingFilePath = null;
+    fileTagArea.innerHTML = '<span class="file-tag">📄 ' + file.name +
+      ' <span class="remove" onclick="clearFile()">✕</span></span>';
   });
 
   window.clearFile = function() {
     pendingFile = null;
+    pendingFilePath = null;
     fileInput.value = '';
     fileTagArea.innerHTML = '';
   };
 
+  // ---- 上传文件到服务器 ----
+  async function uploadFile(file) {
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+      const resp = await fetch('/upload', { method: 'POST', body: formData });
+      if (!resp.ok) throw new Error('上传失败 (HTTP ' + resp.status + ')');
+      const result = await resp.json();
+      if (result.success && result.file_path) {
+        return result.file_path;
+      } else {
+        throw new Error(result.error || '上传返回异常');
+      }
+    } catch(e) {
+      throw new Error('文件上传失败：' + e.message);
+    }
+  }
+
   // ---- 发送消息 ----
   async function sendMessage() {
     const text = msgInput.value.trim();
-    let userMsg = text;
+    let userDisplayMsg = text;
+    let agentQuery = text;
 
+    // 如果有待上传文件
     if (pendingFile) {
-      userMsg = userMsg ? `${pendingFile.name}\n${userMsg}` : `请审查论文：${pendingFile.name}`;
-      // In a real deployment, the file would be uploaded to S3 first
-      // For now, pass filename as the message
+      btnSend.disabled = true;
+      addMessage('user', '📄 上传文件：' + pendingFile.name + (text ? '\n' + text : ''));
+
+      // 显示上传中提示
+      addTypingIndicator();
+      try {
+        pendingFilePath = await uploadFile(pendingFile);
+        removeTypingIndicator();
+        agentQuery = '请审查这篇论文：' + pendingFilePath + (text ? '\n' + text : '');
+      } catch(e) {
+        removeTypingIndicator();
+        addMessage('assistant', '❌ 文件上传失败：' + e.message + '\n请直接输入论文路径重试。');
+        pendingFile = null;
+        pendingFilePath = null;
+        fileTagArea.innerHTML = '';
+        fileInput.value = '';
+        btnSend.disabled = false;
+        return;
+      }
+      pendingFile = null;
+      fileTagArea.innerHTML = '';
+      fileInput.value = '';
+    } else {
+      if (!agentQuery) return;
+      addMessage('user', agentQuery);
     }
 
-    if (!userMsg) return;
-
-    addMessage('user', userMsg);
     msgInput.value = '';
-    pendingFile = null;
-    fileTagArea.innerHTML = '';
-    fileInput.value = '';
-
     btnSend.disabled = true;
     addTypingIndicator();
 
     try {
-      await streamCall(userMsg);
+      await streamCall(agentQuery);
     } catch(e) {
       removeTypingIndicator();
       addMessage('assistant', '❌ 请求失败：' + e.message);
@@ -506,7 +545,7 @@
     }
   });
 
-  // ---- 流式调用 ----
+  // ---- 流式调用 (SSE) ----
   async function streamCall(query) {
     const responseBubble = addMessage('assistant', '');
     let fullText = '';
@@ -527,6 +566,10 @@
       body: JSON.stringify(payload)
     });
 
+    if (!resp.ok) {
+      throw new Error('服务器返回错误 (HTTP ' + resp.status + ')');
+    }
+
     const reader = resp.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '';
@@ -540,22 +583,75 @@
       buffer = lines.pop() || '';
 
       for (const line of lines) {
+        // SSE 格式: "data: {json}" 或 "event: xxx"
         if (!line.startsWith('data: ')) continue;
+        const jsonStr = line.slice(6).trim();
+        if (!jsonStr) continue;
+
         try {
-          const data = JSON.parse(line.slice(6));
-          if (data.type === 'answer' && data.content) {
-            fullText += data.content;
+          const data = JSON.parse(jsonStr);
+
+          // Robust text extraction
+          let textChunk = '';
+
+          if (data.type === 'answer') {
+            if (data.content && typeof data.content.answer === 'string') {
+              textChunk = data.content.answer;
+            } else if (typeof data.content === 'string') {
+              textChunk = data.content;
+            } else if (data.answer && typeof data.answer === 'string') {
+              textChunk = data.answer;
+            } else if (data.text && typeof data.text === 'string') {
+              textChunk = data.text;
+            }
+          }
+
+          if (data.type === 'tool_request' || data.type === 'tool_response') {
+            const toolName = (data.content && data.content.tool_name)
+              || (data.content && data.content.name) || '';
+            if (toolName) {
+              textChunk = '🔧 调用工具：' + toolName + '\n';
+            }
+          }
+
+          if (data.type === 'error') {
+            let errMsg = '未知错误';
+            if (data.content) {
+              if (typeof data.content === 'string') errMsg = data.content;
+              else if (data.content.error) {
+                if (typeof data.content.error === 'string') errMsg = data.content.error;
+                else if (data.content.error.message) errMsg = data.content.error.message;
+              }
+              else errMsg = JSON.stringify(data.content);
+            }
+            textChunk = '\n❌ 错误：' + errMsg;
+          }
+
+          if (data.type === 'message_end') {
+            // stream ended
+          }
+
+          if (textChunk) {
+            fullText += textChunk;
             responseBubble.innerHTML = formatText(fullText);
             scrollToBottom();
           }
-        } catch(e) { /* skip non-JSON lines */ }
+
+        } catch(e) {
+          // non-JSON line, skip
+        }
+        }
       }
     }
 
     removeTypingIndicator();
     if (!fullText) {
-      responseBubble.innerHTML = formatText('审查完成，但未收到文本回复。');
+      responseBubble.innerHTML = formatText('审查完成，但未收到文本回复。请尝试重新发送。');
+    } else {
+      // 最终渲染
+      responseBubble.innerHTML = formatText(fullText);
     }
+    scrollToBottom();
   }
 
   // ---- 自动调整 textarea 高度 ----

@@ -8,7 +8,7 @@ from typing import Any, Dict, Iterable, AsyncIterable, AsyncGenerator, Optional
 import cozeloop
 import uvicorn
 import time
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, UploadFile, File as FastAPIFile
 from fastapi.responses import StreamingResponse, JSONResponse
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import StateGraph, END
@@ -252,6 +252,32 @@ async def serve_ui():
     if _os.path.exists(index_path):
         return FileResponse(index_path)
     return JSONResponse({"status": "running", "ui": "/ui/"})
+
+@app.post("/upload")
+async def upload_file(file: UploadFile = FastAPIFile(...)):
+    """上传论文文件，保存到 /tmp 并返回路径"""
+    import os, uuid, shutil
+    allowed_ext = {'.docx', '.pdf', '.txt', '.md'}
+    ext = os.path.splitext(file.filename or "")[1].lower()
+    if ext not in allowed_ext:
+        return JSONResponse({"success": False, "error": f"不支持的格式 {ext}，请上传 {', '.join(allowed_ext)} 文件"}, status_code=400)
+    
+    # Save to workspace assets dir (same filesystem as Agent tools)
+    workspace = os.getenv("COZE_WORKSPACE_PATH", "/workspace/projects")
+    upload_dir = os.path.join(workspace, "assets", "uploads")
+    os.makedirs(upload_dir, exist_ok=True)
+    unique_name = f"{uuid.uuid4().hex[:8]}_{file.filename}"
+    save_path = os.path.join(upload_dir, unique_name)
+    with open(save_path, "wb") as f:
+        shutil.copyfileobj(file.file, f)
+    
+    return JSONResponse({
+        "success": True,
+        "file_path": save_path,
+        "file_name": file.filename,
+        "format": ext.lstrip('.'),
+        "size": os.path.getsize(save_path)
+    })
 
 # OpenAI 兼容接口处理器
 openai_handler = OpenAIChatHandler(service)
