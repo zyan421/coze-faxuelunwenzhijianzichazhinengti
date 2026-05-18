@@ -179,7 +179,7 @@ body{font-family:'Noto Serif SC','PingFang SC','Microsoft YaHei',serif;backgroun
       <li>🔍 九大维度深度审查 + 引注格式专项校对</li>
       <li>📄 交付带批注的 Word 文档 + PDF 审查报告</li>
     </ul>
-    <div class="tip">⏱️ <b>温馨提示：</b>完整审查约需 <b>30-60 分钟甚至更长</b>（取决于论文长度和模型速度），期间请勿刷新页面或发送新指令。进度条中的步骤是<b>真实</b>的，每完成一步会实时更新，请耐心等待。</div>
+    <div class="tip">⏱️ <b>温馨提示：</b>完整审查约需 <b>15-30 分钟</b>（取决于论文长度和模型速度），期间请勿刷新页面或发送新指令。进度条中的步骤是<b>真实</b>的，每完成一步会实时更新，请耐心等待。</div>
   </div>
 </div>
 
@@ -407,7 +407,7 @@ function onFileSelected(e) {
   document.getElementById('filePreview').style.display = 'flex';
   document.getElementById('filePreviewName').textContent = file.name;
   document.getElementById('filePreviewSize').textContent = '(' + (file.size/1024).toFixed(1) + ' KB)';
-  document.getElementById('msgInput').placeholder = '文件已就绪，点击发送开始审查（约30-60分钟）';
+  document.getElementById('msgInput').placeholder = '文件已就绪，点击发送开始审查（约15-30分钟）';
 }
 
 function clearFile() {
@@ -555,7 +555,7 @@ const HEARTBEAT_MSGS = [
   '⏳ 审查仍在进行中，请勿刷新页面...',
   '📊 每个审查步骤都需要模型深度思考，请继续等待...',
   '🔄 进度条中的步骤是真实的，每完成一步会实时更新...',
-  '💡 如超过60分钟仍无响应，请检查模型设置后重新开始...',
+  '💡 如超过30分钟仍无响应，请检查模型设置后重新开始...',
 ];
 let heartbeatIdx = 0;
 let heartbeatEl = null;
@@ -586,13 +586,32 @@ function stopHeartbeat() {
 let progressPanel = null;
 const TOOL_LABELS = {
   read_paper_file: '📖 读取论文',
-  normalize_issues_for_annotation: '📋 生成问题清单',
-  generate_annotated_docx: '📝 生成批注文档',
-  generate_markdown_report: '📄 生成审查报告',
-  verify_fact: '🔍 事实核实',
+  generate_deliverables: '📦 生成交付物',
 };
 
 let stepTimerIds = {};
+// Global timer: updates all active .step-elapsed elements every second
+let globalStepTimer = null;
+function _startGlobalStepTimer() {
+  if (globalStepTimer) return;  // already running
+  globalStepTimer = setInterval(() => {
+    if (!progressPanel) return;
+    const activeSteps = progressPanel.querySelectorAll('.progress-step.active');
+    activeSteps.forEach(step => {
+      const t0 = parseInt(step.dataset.startTime || '0');
+      if (!t0) return;
+      const elapsed = document.createElement('span'); // temp
+      const es = step.querySelector('.step-elapsed');
+      if (!es) return;
+      const sec = Math.floor((Date.now() - t0) / 1000);
+      if (sec < 60) { es.textContent = sec + 's'; }
+      else { es.textContent = Math.floor(sec/60) + 'm' + (sec%60) + 's'; }
+    });
+  }, 1000);
+}
+function _stopGlobalStepTimer() {
+  if (globalStepTimer) { clearInterval(globalStepTimer); globalStepTimer = null; }
+}
 
 function addProgressPanel() {
   const bubble = document.querySelector('.msg.agent:last-child .msg-bubble');
@@ -612,6 +631,8 @@ function addProgressPanel() {
       totalEl.textContent = `(已用时 ${m}:${String(s).padStart(2,'0')})`;
     }, 1000);
   }
+  // Start global step elapsed timer
+  _startGlobalStepTimer();
 }
 
 function addProgressStep(toolName) {
@@ -624,7 +645,8 @@ function addProgressStep(toolName) {
   const step = document.createElement('div');
   step.className = 'progress-step active';
   step.dataset.tool = toolName;
-  step.dataset.stepIndex = retryIdx;  // 唯一序号
+  step.dataset.stepIndex = retryIdx;
+  step.dataset.startTime = Date.now().toString();  // 全局计时器用这个
   const elapsedSpan = document.createElement('span');
   elapsedSpan.className = 'step-elapsed';
   elapsedSpan.style.cssText = 'font-size:11px;color:#B8860B;margin-left:6px';
@@ -633,15 +655,6 @@ function addProgressStep(toolName) {
   step.appendChild(elapsedSpan);
   progressPanel.appendChild(step);
   progressPanel.scrollIntoView({behavior:'smooth'});
-  // Live elapsed time for this step (use unique key to avoid timer collision)
-  const timerKey = toolName + '_' + retryIdx;
-  const t0 = Date.now();
-  stepTimerIds[timerKey] = setInterval(() => {
-    const sec = Math.floor((Date.now() - t0) / 1000);
-    if (sec < 60) { elapsedSpan.textContent = sec + 's'; }
-    else { elapsedSpan.textContent = Math.floor(sec/60) + 'm' + (sec%60) + 's'; }
-  }, 1000);
-  step.dataset.timerKey = timerKey;
 }
 
 function completeProgressStep(toolName, duration) {
@@ -654,9 +667,6 @@ function completeProgressStep(toolName, duration) {
   const displayLabel = parseInt(idx) > 0 ? `${label} (第${parseInt(idx)+1}次)` : label;
   step.className = 'progress-step done';
   step.innerHTML = `<span class="icon">✅</span> ${displayLabel} 完成 (${duration.toFixed(1)}s)`;
-  // Clear elapsed timer using unique key
-  const timerKey = step.dataset.timerKey || toolName;
-  if (stepTimerIds[timerKey]) { clearInterval(stepTimerIds[timerKey]); delete stepTimerIds[timerKey]; }
 }
 
 function finishProgress() {
@@ -666,6 +676,7 @@ function finishProgress() {
   // Clear all timers
   Object.values(stepTimerIds).forEach(id => clearInterval(id));
   stepTimerIds = {};
+  _stopGlobalStepTimer();
 }
 
 // ===== SEND MESSAGE =====
@@ -937,6 +948,7 @@ async function startStream(query, bubble) {
     progressPanel = null;
     Object.values(stepTimerIds).forEach(id => clearInterval(id));
     stepTimerIds = {};
+    _stopGlobalStepTimer();
     saveCurrentConv();
   }
 }

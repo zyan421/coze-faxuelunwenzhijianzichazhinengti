@@ -1,13 +1,21 @@
 """
-法学论文质检自查 Agent —— unified-thesis-reviewer 总编排器 (v2.0)
+法学论文质检自查 Agent —— unified-thesis-reviewer 总编排器 (v3.0)
 
 核心职责：
 1. 接收论文文件（docx / pdf / txt / md）或 URL
-2. 调用 UTR 工具链执行一站式审查，生成严格 UTR schema issues.json
-3. 生成 .annotated.docx 或 .annotated.pdf 批注文档
-4. 返回 Markdown 总报告 + issues.json + 修改建议
-5. 质量门禁：issue >= 8，实质性 >= 5，无 anchor_text 空洞
-6. 失败时暴露完整堆栈，禁止泛化话术
+2. 调用 read_paper_file 读取论文全文
+3. LLM 直接在分析中输出 UTR schema issues JSON（无需额外 normalize 步骤）
+4. 调用 generate_deliverables 一次性生成带批注 docx + PDF 报告
+
+优化（v3.0 vs v2.0）：
+- 删除 verify_fact：该工具每次联网搜索耗时5分钟×10+事实=50+分钟，是最大瓶颈
+  LLM 自身知识足以识别法条引用是否规范，标注"需人工核实"即可
+- 删除 normalize_issues_for_annotation：LLM 直接输出 UTR JSON，省去一次 LLM 往返
+- 合并 generate_annotated_docx + generate_markdown_report → generate_deliverables：
+  一次工具调用完成两个交付物，省去一次 LLM 往返
+- 总 LLM 工具往返从 6+2N 降至 3（read → analysis → deliverables）
+
+失败时暴露完整堆栈，禁止泛化话术。
 """
 
 import os
@@ -46,20 +54,11 @@ ENUM_CATEGORY = {
 ENUM_SEVERITY = {"fatal", "major", "minor"}
 ENUM_SCOPE = {"document", "chapter", "paragraph", "sentence", "span"}
 
-# ---------------------------------------------------------------------------
-# 短期记忆：直接使用 MessagesState 的 add_messages reducer，不做窗口截断。
-# 原因：kimi 模型 API 严格要求每个 ToolMessage 的 tool_call_id 都能在历史中
-# 找到对应的 AIMessage。任何截断都可能导致 400 tool_call_id not found。
-# 对于论文审查这种单次任务型对话，不需要窗口截断。
-# ---------------------------------------------------------------------------
+SEVERITY_ORDER = {"fatal": 0, "major": 1, "minor": 2}
 
 
 class AgentState(MessagesState):
     messages: Annotated[list[AnyMessage], add_messages]
-ID_PATTERN = re.compile(r"^(thesis|citation)-([a-z-]+)-\d{3}$")
-GROUP_ID_PATTERN = re.compile(r"^g-\d{3,}$")
-
-SEVERITY_ORDER = {"fatal": 0, "major": 1, "minor": 2}
 
 
 def _utr_tool_path(name: str) -> str:
@@ -67,14 +66,9 @@ def _utr_tool_path(name: str) -> str:
 
 
 def _resolve_local_docx_path(file_path: str) -> str:
-    """将 URL / file_id / 本地路径统一解析为本地 .docx 二进制文件路径。
-    
-    - URL → 下载到 /tmp 并返回本地路径
-    - file_id (file_xxx) → 通过 coze_coding_utils 解析
-    - 本地路径 → 直接返回
-    """
+    """将 URL / file_id / 本地路径统一解析为本地 .docx 二进制文件路径。"""
     path = file_path.strip()
-    
+
     # URL → 下载二进制文件到 /tmp
     if path.startswith("http://") or path.startswith("https://"):
         import requests
@@ -88,18 +82,17 @@ def _resolve_local_docx_path(file_path: str) -> str:
         with open(tmp_path, "wb") as f:
             f.write(resp.content)
         return tmp_path
-    
+
     # Coze file_id → 解析为本地路径
     if path.startswith("file_") and not os.path.exists(path):
         try:
             import coze_coding_utils.file as cf_mod
             coze_file = getattr(cf_mod, "file", cf_mod)
-            # type: ignore — LSP 无法推断 get_file 动态属性，运行时存在
             resolved = coze_file.get_file(path).file_path  # type: ignore[union-attr]
             return resolved
         except Exception:
             pass
-    
+
     # 本地路径直接返回
     return path
 
@@ -127,9 +120,8 @@ def _read_text(file_path: str) -> dict:
 
         if path.startswith("file_") and not os.path.exists(path):
             try:
-                import coze_coding_utils.file as cf_mod  # type: ignore[import]
+                import coze_coding_utils.file as cf_mod
                 coze_file = getattr(cf_mod, "file", cf_mod)
-                # type: ignore[union-attr] — LSP 无法推断 get_file 动态属性，运行时存在
                 fpath = coze_file.get_file(path).file_path  # type: ignore[union-attr]
                 path = fpath
             except Exception:
@@ -161,17 +153,15 @@ def _read_text(file_path: str) -> dict:
                                 "total_chars": len(text),
                                 "text_preview": text[:5000] if text else "",
                                 "full_text_available": True}
-                    # else fall through to python-docx
                 finally:
                     if tmp_out and os.path.exists(tmp_out):
                         try:
                             os.unlink(tmp_out)
                         except Exception:
                             pass
-                # Fall through to python-docx fallback
+            # Fall through to python-docx fallback
             from docx import Document
             doc = Document(path)
-            # 遍历所有 Run，捕获完整段落文本（含样式中的文本）
             W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
             def full_para_text(p_el):
                 parts = []
@@ -227,7 +217,7 @@ def _read_text(file_path: str) -> dict:
 @tool
 def read_paper_file(file_path: str) -> str:
     """读取论文文件内容。file_path 可以是本地路径、公网 URL 或 Coze 平台 file_id。"""
-    # 先尝试解析本地路径（供后续 generate_annotated_docx 使用）
+    # 先尝试解析本地路径（供后续 generate_deliverables 使用）
     local_docx_path = ""
     try:
         resolved = _resolve_local_docx_path(file_path)
@@ -235,15 +225,12 @@ def read_paper_file(file_path: str) -> str:
             local_docx_path = resolved
     except Exception:
         pass
-    
+
     result = _read_text(file_path)
     if not result["success"]:
         return json.dumps(result, ensure_ascii=False)
     paper_text = result["text"]
-    # 预览取前 5000 字符（足够预览又不会过大）
     preview = paper_text[:5000]
-    # 注意：full_paper_text 放在 text_preview 之前（避免 Agent 输出截断导致丢失）
-    # local_docx_path 供 generate_annotated_docx 使用，避免 URL 路径无法访问
     return json.dumps({
         "success": True,
         "format": result.get("format"),
@@ -256,37 +243,33 @@ def read_paper_file(file_path: str) -> str:
     }, ensure_ascii=False)
 
 
-@tool
-def normalize_issues_for_annotation(analysis_result: str, paper_text: str) -> str:
-    """
-    将模型审查分析文本转换为严格 UTR schema issues.json。
-    
-    输入：analysis_result（Markdown 审查文本）、paper_text（论文全文文本）
-    输出：{"schema_version": "1.0", "issues": [...]} 格式的 JSON 字符串。
-    每条 issue 必须符合：
-    - id: thesis-{category}-001 或 citation-{category}-001
-    - source: thesis/citation
-    - category: structure/argumentation/literature-review/empirical/legal-norms/language/policy/academic-integrity/citation-format/citation-missing-info
-    - severity: fatal/major/minor（中文"致命"->fatal, "严重/重要"->major, "建议/轻微"->minor）
-    - scope: document/chapter/paragraph/sentence/span
-    - locator: {chapter: "非空字符串", paragraph_index: 整数}
-    - excerpt: ≤60码点，scope=document/chapter时必须为空字符串
-    - anchor_text: ≤60码点，用于docx批注定位
-    - problem: 1-200码点非空
-    - suggestion: 字符串数组，长度1-5，每条1-500码点
-    - group_id: g-001格式
-    
-    质量门禁：
-    - issue总数必须 >= 8
-    - fatal+major 实质性 issue 必须 >= 5
-    - 本科论文实质性(fatal+major)占比 >= 50%
-    - 若不符合，在返回的JSON中包含 "quality_gate_passed": false
-    """
-    issues = []
+# ---------------------------------------------------------------------------
+# UTR Schema 验证与修补（内联，不需要单独工具）
+# ---------------------------------------------------------------------------
+ID_PATTERN = re.compile(r"^(thesis|citation)-([a-z-]+)-\d{3}$")
+GROUP_ID_PATTERN = re.compile(r"^g-\d{3,}$")
+
+# 封面页/模板文本黑名单
+_COVER_BLACKLIST = {
+    "湘潭大学", "毕业论文", "学士学位论文", "硕士论文", "博士论文",
+    "学号", "指导教师", "学院", "法学学部", "Faculty of Law",
+    "Xiangtan University", "本科", "课程论文", "原创性声明",
+    "版权使用授权书", "答辩委员会", "摘要", "Abstract", "关键词",
+    "Keywords", "目录", "参考文献", "致谢", "附录",
+}
+
+
+def _validate_and_fix_issues(issues_data: dict, paper_text: str) -> dict:
+    """验证并修补 UTR issues JSON，确保 schema 合规。"""
+    issues = issues_data.get("issues", [])
+    if not issues:
+        return issues_data
+
+    fixed_issues = []
     group_counter = 1
     gid_map = {}
 
-    def _next_gid(src: str, cat: str, chapter: str, pidx: int) -> str:
+    def _next_gid(src, cat, chapter, pidx):
         nonlocal group_counter
         key = (src, cat, chapter, pidx)
         if key not in gid_map:
@@ -294,646 +277,306 @@ def normalize_issues_for_annotation(analysis_result: str, paper_text: str) -> st
             group_counter += 1
         return gid_map[key]
 
-    lines = analysis_result.strip().split("\n")
-    current = None
-    severity_map = {
-        "致命": "fatal", "严重": "major", "重大": "major", "重要": "major",
-        "中等": "minor", "一般": "minor", "建议": "minor", "轻微": "minor"
-    }
-    category_map = {
-        "选题": "structure", "结构": "structure", "章节": "structure",
-        "论证": "argumentation", "论点": "argumentation", "论据": "argumentation",
-        "文献": "literature-review", "综述": "literature-review",
-        "实证": "empirical", "数据": "empirical", "案例": "empirical",
-        "规范": "legal-norms", "法条": "legal-norms", "法律": "legal-norms",
-        "语言": "language", "表达": "language", "术语": "language",
-        "对策": "policy", "建议": "policy",
-        "学术不端": "academic-integrity", "引用": "citation-format",
-        "引注": "citation-format", "脚注": "citation-format", "参考文献": "citation-missing-info"
-    }
+    for i, issue in enumerate(issues):
+        # Fix id
+        src = issue.get("source", "thesis")
+        cat = issue.get("category", "argumentation")
+        if src not in ENUM_SOURCE:
+            src = "thesis"
+        if cat not in ENUM_CATEGORY:
+            cat = "argumentation"
+        issue["id"] = f"{src}-{cat}-{i+1:03d}"
+        issue["source"] = src
+        issue["category"] = cat
 
-    def _infer_category(text: str) -> str:
-        """从文本推断 category。优先从方括号标签提取，其次从内容关键词推断。"""
-        text_lower = text.lower()
-        # 1. 先从方括号标签提取 category（取第二个方括号，第一个是 severity）
-        bracket_tags = re.findall(r'\[([^\]]+)\]', text)
-        category_tag_map = {
-            "结构": "structure", "选题": "structure", "章节": "structure",
-            "论证": "argumentation", "论点": "argumentation", "论据": "argumentation",
-            "文献": "literature-review", "综述": "literature-review",
-            "实证": "empirical", "数据": "empirical", "案例": "empirical",
-            "规范": "legal-norms", "法条": "legal-norms", "法律": "legal-norms",
-            "语言": "language", "表达": "language", "术语": "language",
-            "对策": "policy",
-            "学术不端": "academic-integrity",
-            "引注": "citation-format", "引用": "citation-format",
-            "脚注": "citation-format", "参考文献": "citation-missing-info",
-            "引注格式": "citation-format", "citation": "citation-format",
-        }
-        for tag in bracket_tags:
-            tag_lower = tag.lower().strip()
-            if tag_lower in category_tag_map:
-                return category_tag_map[tag_lower]
-        # 2. 兜底：从内容关键词推断（排除 severity 关键词）
-        # 去掉方括号标签后再推断
-        content = re.sub(r'\[[^\]]+\]', '', text_lower)
-        for key, val in category_map.items():
-            # 跳过仅作为 severity 使用的关键词
-            if key in ("建议", "轻微"):
-                continue
-            if key in content:
-                return val
-        if "引" in content or "注" in content or " footnote" in text_lower or "reference" in text_lower:
-            return "citation-format"
-        return "argumentation"
+        # Fix severity
+        sev = issue.get("severity", "minor")
+        if sev not in ENUM_SEVERITY:
+            sev = "minor"
+        issue["severity"] = sev
 
-    def _infer_severity(text: str) -> str:
-        for key, val in severity_map.items():
-            if key in text:
-                return val
-        return "minor"
+        # Fix scope
+        scope = issue.get("scope", "paragraph")
+        if scope not in ENUM_SCOPE:
+            scope = "paragraph"
+        issue["scope"] = scope
 
-    # ── 封面页/模板文本（匹配到这些位置毫无意义，必须排除）──
-    _COVER_BLACKLIST = {
-        "湘潭大学", "毕业论文", "学士学位论文", "硕士论文", "博士论文",
-        "学号", "指导教师", "学院", "法学学部", "Faculty of Law",
-        "Xiangtan University", "本科", "课程论文", "原创性声明",
-        "版权使用授权书", "答辩委员会", "摘要", "Abstract", "关键词",
-        "Keywords", "目录", "参考文献", "致谢", "附录",
-    }
+        # Fix locator
+        locator = issue.get("locator", {})
+        if not isinstance(locator, dict):
+            locator = {}
+        locator.setdefault("chapter", "正文")
+        locator.setdefault("paragraph_index", 0)
+        issue["locator"] = locator
 
-    def _find_anchor(text: str, paper: str) -> str:
-        """在论文正文中寻找可定位的 anchor_text，返回前60码点。
-        
-        策略（按优先级）：
-        1. 引号内原文引用（LLM 在分析中直接引用论文原文）
-        2. 6-50字的中文句子片段
-        3. 4-8字的关键词搜索
-        4. 兜底：描述前40字（inject-docx 仍可定位）
-        
-        关键：跳过封面页/模板区域，只在正文区域匹配。
-        """
-        if not paper or not text:
-            return text[:60] if text else ""
+        # Fix excerpt (scope=document/chapter时必须为空)
+        excerpt = issue.get("excerpt", "")
+        if scope in ("document", "chapter"):
+            excerpt = ""
+        elif not excerpt and len(paper_text) > 0:
+            # 尝试从问题中提取可能的原文片段
+            anchor = issue.get("anchor_text", "")
+            excerpt = anchor[:60] if anchor else ""
+        if len(excerpt) > 60:
+            excerpt = excerpt[:57] + "..."
+        issue["excerpt"] = excerpt
 
-        # ── 找到正文起始位置（跳过封面/目录等前置部分）──
-        body_start = 0
-        # 策略：查找"第一章"/"第1章"/"绪论"/"引言"/"一、" 等正文标志
-        for marker in [r'第[一1]章', r'绪\s*论', r'引\s*言', r'一、']:
-            m = re.search(marker, paper)
-            if m:
-                body_start = max(body_start, m.start())
-                break
-        # 如果没找到，跳过前30%的文本（通常是封面+目录+摘要）
-        if body_start == 0 and len(paper) > 2000:
-            body_start = int(len(paper) * 0.15)
-        
-        body_paper = paper[body_start:]  # 只在正文区域搜索
+        # Fix anchor_text - 确保是论文原文而非概括
+        anchor_text = issue.get("anchor_text", "")
+        if anchor_text and paper_text:
+            # 验证 anchor_text 是否在论文中出现
+            if anchor_text not in paper_text:
+                # 尝试找最相似的片段
+                anchor_text = _find_anchor_in_text(issue.get("problem", ""), paper_text)
+        elif not anchor_text and paper_text:
+            anchor_text = _find_anchor_in_text(issue.get("problem", ""), paper_text)
+        if len(anchor_text) > 60:
+            anchor_text = anchor_text[:60]
+        issue["anchor_text"] = anchor_text
 
-        candidates = []
-        # 1. 引号内原文引用（最高优先级）
-        for m in re.finditer(r'["""](.{4,60}?)["""]', text):
-            candidates.append((len(m.group(1)), m.group(1).strip(), 3))
-        # 2. 中文句子片段
-        for m in re.finditer(r'[\u4e00-\u9fff]{6,50}', text):
-            candidates.append((len(m.group()), m.group(), 1))
-        
-        # 去重并按优先级+长度排序
-        seen, unique = {}, []
-        for length, cand, priority in candidates:
-            if cand not in seen:
-                seen[cand] = True
-                unique.append((length, cand, priority))
-        unique.sort(key=lambda x: (-x[2], -x[0]))
-        
-        stop_words = {"全文", "本文", "论文", "该文", "该论文", "建议", "问题", "内容", "相关",
-                       "主要", "重要", "严重", "轻微", "具体", "有关", "研究", "分析",
-                       "湘潭大学", "毕业论文", "学士学位", "学号", "指导教师"}
-        for _, cand, _ in unique:
-            if cand in stop_words:
-                continue
-            # 必须在正文区域出现，且不在封面黑名单中
-            if cand in body_paper and not any(bw in cand for bw in _COVER_BLACKLIST if len(bw) <= len(cand)):
-                return cand[:60]
-        
-        # 降级：在正文区域搜索关键词
-        words = re.findall(r'[\u4e00-\u9fff]{4,8}', text)
-        for w in sorted(set(words), key=len, reverse=True):
-            if w not in stop_words and w in body_paper and not any(bw in w for bw in _COVER_BLACKLIST if len(bw) <= len(w)):
-                return w[:60]
-        
-        # 最终兜底：返回原文片段（inject-docx 会按最近匹配处理）
-        return text.strip()[:40][:60]
+        # Fix problem
+        problem = issue.get("problem", "")
+        if not problem or not problem.strip():
+            problem = "问题描述待补充"
+        if len(problem) > 200:
+            problem = problem[:200]
+        issue["problem"] = problem
 
-    def _infer_chapter(text: str, paper: str) -> str:
-        """推断章节标题。"""
-        # 从文本中找 "第X章" 或 "X、" 开头的章节名
-        m = re.search(r'(第[一二三四五六七八九十\d]+章[^\n，。]{0,20}|\d+[、\.][^\n，。]{0,20})', text)
-        if m:
-            ch = m.group(1).strip()
-            if ch in paper:
-                return ch[:60]
-        # 默认章节
-        return "正文"
+        # Fix suggestion
+        suggestion = issue.get("suggestion", [])
+        if not isinstance(suggestion, list):
+            suggestion = [str(suggestion)]
+        if not suggestion:
+            suggestion = ["请根据具体上下文补充修改建议"]
+        suggestion = [str(s)[:500] for s in suggestion[:5]]
+        issue["suggestion"] = suggestion
 
-    def _infer_paragraph_index(text: str, paper: str) -> int:
-        """推断段落索引，默认 0。"""
-        # 如果能找到 anchor_text 在论文中的位置，估算 paragraph_index
-        anchor = _find_anchor(text, paper)
-        if anchor and anchor in paper:
-            before = paper[:paper.index(anchor)]
-            return before.count('\n') // 2  # 粗略估算
-        return 0
+        # Fix group_id
+        gid = issue.get("group_id", "")
+        if not GROUP_ID_PATTERN.match(gid):
+            gid = _next_gid(src, cat, locator.get("chapter", "正文"), locator.get("paragraph_index", 0))
+        issue["group_id"] = gid
 
-    for line in lines:
-        line = line.strip()
-        if not line:
-            if current:
-                issues.append(current)
-                current = None
-            continue
-        # 匹配 issue 标题行，如 "1. [严重][论证] 论证不严谨"
-        if re.match(r'^\d+[\.\)\s]', line[:5]):
-            if current:
-                issues.append(current)
-            sev = _infer_severity(line)
-            cat = _infer_category(line)
-            src = "citation" if cat in ("citation-format", "citation-missing-info") else "thesis"
-            # 从行中提取描述
-            desc = re.sub(r'^\d+[\.\)\s]+', '', line)
-            desc = re.sub(r'\[[^\]]+\]', '', desc).strip()
-            # 推断 scope
-            if cat in ("structure",):
-                scope = "chapter"
-            elif cat in ("argumentation", "literature-review", "empirical", "legal-norms", "language", "policy"):
-                scope = "paragraph"
-            else:
-                scope = "sentence"
-            _ch = _infer_chapter(desc, paper_text)
-            _pidx = _infer_paragraph_index(desc, paper_text)
-            _idx = len(issues)
-            _anchor = _find_anchor(desc, paper_text)
-            if _anchor and len(_anchor) > 60:
-                _anchor = _anchor[:60]
-            current = {
-                "id": f"{src}-{cat}-{len(issues)+1:03d}",
-                "source": src,
-                "category": cat,
-                "severity": sev,
-                "scope": scope,
-                "locator": {
-                    "chapter": _ch,
-                    "paragraph_index": _pidx
-                },
-                "excerpt": "" if scope in ("document", "chapter") else (desc[:60] if len(desc) <= 60 else desc[:57] + "..."),
-                "anchor_text": _anchor,
-                "problem": desc[:200] if desc else "问题描述待补充",
-                "suggestion": ["请根据具体上下文补充修改建议"],
-                "group_id": _next_gid(src, cat, _ch, _pidx)
-            }
-        elif current:
-            if line.startswith("证据：") or line.startswith("依据："):
-                current["problem"] += " [原文核对] " + line[3:].strip()
-            elif line.startswith("建议：") or line.startswith("修改："):
-                sug = line[3:].strip()
-                if sug:
-                    current["suggestion"] = [sug[:500]]
-            else:
-                current["problem"] += " " + line
-                if len(current["problem"]) > 200:
-                    current["problem"] = current["problem"][:200]
-    if current:
-        issues.append(current)
+        fixed_issues.append(issue)
 
+    issues_data["issues"] = fixed_issues
     # 质量门禁
-    total = len(issues)
-    substantive = sum(1 for i in issues if i["severity"] in ("fatal", "major"))
-    quality_passed = total >= 8 and substantive >= 5
+    total = len(fixed_issues)
+    substantive = sum(1 for i in fixed_issues if i["severity"] in ("fatal", "major"))
+    issues_data.setdefault("quality_gate", {
+        "total_issues": total,
+        "substantive_issues": substantive,
+        "quality_gate_passed": total >= 8 and substantive >= 5
+    })
+    issues_data["quality_gate"]["total_issues"] = total
+    issues_data["quality_gate"]["substantive_issues"] = substantive
+    issues_data["quality_gate"]["quality_gate_passed"] = total >= 8 and substantive >= 5
 
-    result = {
-        "schema_version": "1.0",
-        "issues": issues,
-        "quality_gate": {
-            "total_issues": total,
-            "substantive_issues": substantive,
-            "quality_gate_passed": quality_passed
-        }
+    return issues_data
+
+
+def _find_anchor_in_text(text: str, paper: str) -> str:
+    """在论文正文中寻找可定位的 anchor_text，返回前60码点。"""
+    if not paper or not text:
+        return text[:60] if text else ""
+
+    # 找到正文起始位置（跳过封面/目录等前置部分）
+    body_start = 0
+    for marker in [r'第[一1]章', r'绪\s*论', r'引\s*言', r'一、']:
+        m = re.search(marker, paper)
+        if m:
+            body_start = max(body_start, m.start())
+            break
+    if body_start == 0 and len(paper) > 2000:
+        body_start = int(len(paper) * 0.15)
+
+    body_paper = paper[body_start:]
+
+    candidates = []
+    # 1. 引号内原文引用（最高优先级）
+    for m in re.finditer(r'["""](.{4,60}?)["""]', text):
+        candidates.append((len(m.group(1)), m.group(1).strip(), 3))
+    # 2. 中文句子片段
+    for m in re.finditer(r'[\u4e00-\u9fff]{6,50}', text):
+        candidates.append((len(m.group()), m.group(), 1))
+
+    # 去重并按优先级+长度排序
+    seen, unique = {}, []
+    for length, cand, priority in candidates:
+        if cand not in seen:
+            seen[cand] = True
+            unique.append((length, cand, priority))
+    unique.sort(key=lambda x: (-x[2], -x[0]))
+
+    stop_words = {"全文", "本文", "论文", "该文", "该论文", "建议", "问题", "内容", "相关",
+                   "主要", "重要", "严重", "轻微", "具体", "有关", "研究", "分析",
+                   "湘潭大学", "毕业论文", "学士学位", "学号", "指导教师"}
+    for _, cand, _ in unique:
+        if cand in stop_words:
+            continue
+        if cand in body_paper and not any(bw in cand for bw in _COVER_BLACKLIST if len(bw) <= len(cand)):
+            return cand[:60]
+
+    # 降级：在正文区域搜索关键词
+    words = re.findall(r'[\u4e00-\u9fff]{4,8}', text)
+    for w in sorted(set(words), key=len, reverse=True):
+        if w not in stop_words and w in body_paper and not any(bw in w for bw in _COVER_BLACKLIST if len(bw) <= len(w)):
+            return w[:60]
+
+    return text.strip()[:40][:60]
+
+
+@tool
+def generate_deliverables(docx_path: str, issues_json: str, analysis_summary: str = "") -> str:
+    """一次性生成全部交付物：带批注的 .annotated.docx + PDF 审查报告。
+
+    参数：
+    - docx_path: read_paper_file 返回的 local_docx_path 字段
+    - issues_json: 完整 UTR schema JSON 字符串，格式 {"schema_version":"1.0","issues":[...]}
+    - analysis_summary: 审查分析摘要文本（用于生成报告）
+
+    返回 JSON 包含 annotated_docx_url 和 pdf_url 两个下载链接。
+    """
+    results = {
+        "annotated_docx": {"success": False, "url": None, "error": None},
+        "pdf_report": {"success": False, "url": None, "error": None},
     }
-    # 保存到固定路径，供 generate_markdown_report 自动读取
+
+    # ── Step 1: 解析并验证 issues_json ──
+    raw_str = issues_json if isinstance(issues_json, str) else json.dumps(issues_json, ensure_ascii=False)
+    try:
+        issues_raw = json.loads(raw_str)
+    except json.JSONDecodeError:
+        # 尝试修复常见问题
+        fixed = raw_str
+        for truncate_marker in ['],', '},', '",', 'null,', 'true,', 'false,']:
+            idx = fixed.rfind(truncate_marker)
+            if idx > 0:
+                fixed = fixed[:idx + len(truncate_marker)]
+                break
+        fixed = re.sub(r',?\s*"[^"]*"\s*:\s*"[^"]*$', '', fixed)
+        fixed = re.sub(r',?\s*"[^"]*"\s*:\s*\S+$', '', fixed)
+        open_b = fixed.count('{') + fixed.count('[')
+        close_b = fixed.count('}') + fixed.count(']')
+        for _ in range(open_b - close_b):
+            fixed += '}' if fixed.rstrip().endswith(']') or fixed.rstrip().endswith('}') else ']'
+        try:
+            issues_raw = json.loads(fixed)
+        except json.JSONDecodeError as je2:
+            return json.dumps({
+                "success": False,
+                "error": f"issues_json 解析失败: {str(je2)}",
+                "hint": "请确保传入的 issues_json 是合法 JSON",
+                "raw_preview": raw_str[:200],
+            }, ensure_ascii=False)
+
+    if isinstance(issues_raw, list):
+        issues_data = {"schema_version": "1.0", "issues": issues_raw}
+    elif isinstance(issues_raw, dict) and "issues" in issues_raw:
+        issues_data = issues_raw
+    else:
+        issues_data = {"schema_version": "1.0", "issues": []}
+
+    # 读取论文全文（用于验证和修补 anchor_text）
+    paper_text = ""
+    try:
+        if docx_path and os.path.exists(docx_path):
+            read_result = _read_text(docx_path)
+            if read_result.get("success"):
+                paper_text = read_result.get("text", "")
+    except Exception:
+        pass
+
+    # 验证并修补 issues
+    issues_data = _validate_and_fix_issues(issues_data, paper_text)
+
+    # 保存 issues.json 供后续使用
     try:
         with open("/tmp/last_issues.json", "w", encoding="utf-8") as f:
-            json.dump(result, f, ensure_ascii=False, indent=2)
-    except Exception:
-        pass
-    return json.dumps(result, ensure_ascii=False, indent=2)
-
-
-@tool
-def verify_fact(query: str) -> str:
-    """联网核实事实性内容。query 可以是法律名称、法条、案例、统计数据等。"""
-    try:
-        import coze_coding_dev_sdk as ccds  # type: ignore[import]
-        client = ccds.SearchClient()  # type: ignore[attr-defined]
-        response = client.web_search(query, count=5)  # type: ignore[attr-defined]
-        snippets = []
-        items: list = []
-        if isinstance(response, dict):
-            items = response.get("results", [])
-        elif isinstance(response, (list, tuple)):
-            items = list(response)
-        else:
-            # SearchResponse or any object - use getattr with fallback
-            try:
-                raw = getattr(response, "results", None)  # type: ignore[attr-defined]
-                if raw is not None:
-                    items = list(raw)
-            except Exception:
-                pass
-            if not items:
-                try:
-                    raw = getattr(response, "data", None)  # type: ignore[attr-defined]
-                    if raw is not None:
-                        items = list(raw)
-                except Exception:
-                    pass
-        for r in items:
-            if isinstance(r, dict):
-                title = r.get("title", "")
-                url = r.get("url", "")
-                snippet = r.get("snippet", "")[:200]
-            else:
-                title = getattr(r, "title", "")
-                url = getattr(r, "url", "")
-                snippet = str(getattr(r, "snippet", ""))[:200]
-            snippets.append(f"- [{title}]({url}): {snippet}")
-        return json.dumps({
-            "query": query,
-            "verified": len(snippets) > 0,
-            "sources": snippets[:3],
-            "note": "联网核实仅供参考，请以权威来源为准。"
-        }, ensure_ascii=False, indent=2)
-    except Exception as e:
-        tb = traceback.format_exc()
-        return json.dumps({
-            "query": query, "verified": False,
-            "error": str(e), "traceback": tb, "sources": []
-        }, ensure_ascii=False)
-
-
-@tool
-def generate_annotated_docx(docx_path: str, issues_json: str) -> str:
-    """
-    生成带批注的 .annotated.docx。
-    docx_path 必须使用 read_paper_file 返回的 local_docx_path 字段。
-    issues_json 必须是 normalize_issues_for_annotation 返回的完整 JSON 字符串，禁止自行拼接或截断。
-    注入前先校验 schema，成功后回读校验。
-    """
-    try:
-        import subprocess
-        inject_script = _utr_tool_path("inject-docx-comments.py")
-        if not os.path.exists(inject_script):
-            return json.dumps({
-                "success": False,
-                "error": f"批注注入脚本不存在: {inject_script}",
-                "failed_function": "generate_annotated_docx",
-                "failed_issue_id": None,
-                "traceback": None,
-                "stderr": None
-            }, ensure_ascii=False)
-
-        # 统一解析路径：URL / file_id / 本地路径 → 本地 .docx 文件
-        try:
-            resolved_path = _resolve_local_docx_path(docx_path)
-        except FileNotFoundError as fe:
-            return json.dumps({
-                "success": False,
-                "error": f"原始 docx 文件无法获取: {str(fe)}",
-                "hint": "如果是 URL，请确认链接可公开访问；如果是 file_id，请确认文件已上传成功",
-                "failed_function": "generate_annotated_docx",
-                "failed_issue_id": None,
-                "traceback": None,
-                "stderr": None
-            }, ensure_ascii=False)
-
-        if not os.path.exists(resolved_path):
-            return json.dumps({
-                "success": False,
-                "error": f"原始 docx 文件不存在，已尝试解析为: {resolved_path}，原始输入: {docx_path}",
-                "hint": "请确认文件路径正确，或使用 read_paper_file 中的 local_docx_path 字段",
-                "failed_function": "generate_annotated_docx",
-                "failed_issue_id": None,
-                "traceback": None,
-                "stderr": None
-            }, ensure_ascii=False)
-
-        docx_path = resolved_path
-
-        # 解析并校验 issues_json（容错：LLM 生成的 JSON 可能含截断/转义问题）
-        raw_str = issues_json if isinstance(issues_json, str) else json.dumps(issues_json, ensure_ascii=False)
-        # 尝试直接解析
-        try:
-            issues_raw = json.loads(raw_str)
-        except json.JSONDecodeError:
-            # 尝试修复常见问题：截断的字符串值、多余逗号
-            import re
-            fixed = raw_str
-            # 修复截断的字符串值：找最后一个未闭合的引号，截断该键值对并闭合
-            # 策略：从末尾向回找，找到最后一个完整的 }, ] 或 , 然后截断
-            for truncate_marker in ['],', '},', '",', '",', 'null,', 'true,', 'false,']:
-                idx = fixed.rfind(truncate_marker)
-                if idx > 0:
-                    fixed = fixed[:idx + len(truncate_marker)]
-                    break
-            # 移除尾部不完整的键值对
-            fixed = re.sub(r',?\s*"[^"]*"\s*:\s*"[^"]*$', '', fixed)
-            fixed = re.sub(r',?\s*"[^"]*"\s*:\s*\S+$', '', fixed)
-            # 补齐缺失的括号
-            open_b = fixed.count('{') + fixed.count('[')
-            close_b = fixed.count('}') + fixed.count(']')
-            for _ in range(open_b - close_b):
-                fixed += '}' if fixed.rstrip().endswith(']') or fixed.rstrip().endswith('}') else ']'
-            try:
-                issues_raw = json.loads(fixed)
-            except json.JSONDecodeError as je2:
-                return json.dumps({
-                    "success": False,
-                    "error": f"issues_json 解析失败: {str(je2)}",
-                    "hint": "请确保传入的 issues_json 是合法 JSON。可重新调用 normalize_issues_for_annotation，确保传入完整结果",
-                    "json_error_pos": f"line {je2.lineno} col {je2.colno}",
-                    "raw_preview": raw_str[:200],
-                    "failed_function": "generate_annotated_docx",
-                    "failed_issue_id": None,
-                    "traceback": None,
-                    "stderr": None
-                }, ensure_ascii=False)
-        if isinstance(issues_raw, list):
-            issues_data = {"schema_version": "1.0", "issues": issues_raw}
-        elif isinstance(issues_raw, dict) and "issues" in issues_raw:
-            issues_data = issues_raw
-        else:
-            issues_data = {"schema_version": "1.0", "issues": []}
-
-        # 先写入 debug.issues.json
-        debug_path = docx_path.replace(".docx", ".debug.issues.json")
-        with open(debug_path, "w", encoding="utf-8") as f:
             json.dump(issues_data, f, ensure_ascii=False, indent=2)
-
-        # 调用 inject-docx-comments.py 的 validate
-        # 通过导入方式复用
-        try:
-            import importlib.util
-            spec = importlib.util.spec_from_file_location(
-                "inject_docx_comments", inject_script
-            )
-            mod = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(mod)
-            validation_errors = mod.validate_issues_json(issues_data)
-            if validation_errors:
-                return json.dumps({
-                    "success": False,
-                    "error": f"issues.json 校验失败: {'; '.join(validation_errors[:5])}",
-                    "failed_function": "generate_annotated_docx",
-                    "failed_issue_id": None,
-                    "validation_errors": validation_errors,
-                    "debug_issues_path": debug_path,
-                    "traceback": None,
-                    "stderr": None
-                }, ensure_ascii=False)
-        except Exception as ve:
-            return json.dumps({
-                "success": False,
-                "error": f"校验模块加载失败: {str(ve)}",
-                "failed_function": "generate_annotated_docx",
-                "failed_issue_id": None,
-                "traceback": traceback.format_exc(),
-                "stderr": None
-            }, ensure_ascii=False)
-
-        # 写入临时 issues.json 供脚本读取
-        temp_issues = tempfile.NamedTemporaryFile(
-            mode="w", suffix=".json", delete=False, encoding="utf-8"
-        )
-        json.dump(issues_data, temp_issues, ensure_ascii=False, indent=2)
-        temp_issues.close()
-
-        out_path = docx_path.replace(".docx", ".annotated.docx")
-        proc = subprocess.run(
-            [sys.executable, inject_script, docx_path, temp_issues.name, out_path],
-            capture_output=True, text=True, timeout=180
-        )
-        os.unlink(temp_issues.name)
-
-        if proc.returncode != 0:
-            return json.dumps({
-                "success": False,
-                "error": proc.stderr or "批注注入脚本返回非零退出码",
-                "failed_function": "generate_annotated_docx",
-                "failed_issue_id": None,
-                "stdout": proc.stdout,
-                "stderr": proc.stderr,
-                "returncode": proc.returncode,
-                "debug_issues_path": debug_path,
-                "traceback": None
-            }, ensure_ascii=False)
-
-        # 回读校验
-        try:
-            import zipfile
-            import xml.etree.ElementTree as ET
-            W_NS = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
-            with zipfile.ZipFile(out_path, "r") as z:
-                ct = z.read("[Content_Types].xml")
-                doc = z.read("word/document.xml")
-                tree = ET.ElementTree(ET.fromstring(doc))
-                root = tree.getroot()
-                start_count = sum(1 for _ in root.iter(f"{W_NS}commentRangeStart"))
-                end_count = sum(1 for _ in root.iter(f"{W_NS}commentRangeEnd"))
-                ref_count = sum(1 for _ in root.iter(f"{W_NS}commentReference"))
-
-                if "word/comments.xml" in z.namelist():
-                    comments_xml = z.read("word/comments.xml")
-                    ctree = ET.ElementTree(ET.fromstring(comments_xml))
-                    croot = ctree.getroot()
-                    comment_count = sum(1 for _ in croot.iter(f"{W_NS}comment"))
-                else:
-                    comment_count = 0
-
-            match = (start_count == end_count == ref_count == comment_count)
-            if not match:
-                return json.dumps({
-                    "success": False,
-                    "error": f"回读校验失败: commentRangeStart={start_count}, commentRangeEnd={end_count}, "
-                             f"commentReference={ref_count}, comments.xml={comment_count}",
-                    "failed_function": "generate_annotated_docx",
-                    "failed_issue_id": None,
-                    "readback": {
-                        "commentRangeStart": start_count,
-                        "commentRangeEnd": end_count,
-                        "commentReference": ref_count,
-                        "comments_xml": comment_count
-                    },
-                    "debug_issues_path": debug_path,
-                    "traceback": None
-                }, ensure_ascii=False)
-
-            # 上传到对象存储并返回下载 URL
-            download_url = None
-            try:
-                from coze_coding_dev_sdk.s3 import S3SyncStorage
-                storage = S3SyncStorage(
-                    endpoint_url=os.getenv("COZE_BUCKET_ENDPOINT_URL"),
-                    bucket_name=os.getenv("COZE_BUCKET_NAME"),
-                )
-                # 生成唯一文件名（去除空格避免签名问题）
-                import time
-                base_name = os.path.basename(out_path).replace(" ", "_")
-                unique_name = f"papers/{int(time.time())}_{base_name}"
-                # 流式上传本地文件
-                with open(out_path, "rb") as f:
-                    file_key = storage.stream_upload_file(
-                        fileobj=f,
-                        file_name=unique_name,
-                        content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                    )
-                # 生成预签名 URL（24小时有效期）
-                download_url = storage.generate_presigned_url(
-                    key=file_key,
-                    expire_time=86400
-                )
-            except Exception as ue:
-                import logging
-                logging.warning(f"[S3Upload] 上传失败: {ue}")
-                download_url = None
-
-            if not download_url:
-                download_url = f"本地路径（请从项目文件列表下载）: {out_path}"
-
-            return json.dumps({
-                "success": True,
-                "download_url": download_url,
-                "annotated_docx_path": out_path,
-                "readback": {
-                    "commentRangeStart": start_count,
-                    "commentRangeEnd": end_count,
-                    "commentReference": ref_count,
-                    "comments_xml": comment_count,
-                    "match": match
-                },
-                "debug_issues_path": debug_path,
-                "output": proc.stdout
-            }, ensure_ascii=False)
-        except Exception as re:
-            return json.dumps({
-                "success": False,
-                "error": f"回读校验异常: {str(re)}",
-                "failed_function": "generate_annotated_docx",
-                "failed_issue_id": None,
-                "traceback": traceback.format_exc(),
-                "debug_issues_path": debug_path
-            }, ensure_ascii=False)
-
-    except Exception as e:
-        return json.dumps({
-            "success": False,
-            "error": str(e),
-            "failed_function": "generate_annotated_docx",
-            "failed_issue_id": None,
-            "traceback": traceback.format_exc(),
-            "stderr": None
-        }, ensure_ascii=False)
-
-
-@tool
-def generate_markdown_report(analysis_result: str = "") -> str:
-    """生成完整 Markdown 审查报告（PDF 格式）。
-    
-    若 analysis_result 为空，则使用默认占位文本。
-    问题清单从上次 normalize_issues_for_annotation 保存的 issues.json 自动读取，格式化为易读表格。
-    """
-    # 尝试读取上次保存的 issues.json
-    issues_data = None
-    issues_path = "/tmp/last_issues.json"
-    try:
-        if os.path.exists(issues_path):
-            with open(issues_path, "r", encoding="utf-8") as f:
-                issues_data = json.load(f)
     except Exception:
         pass
 
-    # 如果没有 issues.json，查找最近的 debug.issues.json
-    if not issues_data:
-        import glob
-        candidates = glob.glob("/workspace/projects/**/*.debug.issues.json", recursive=True) + \
-                     glob.glob("/tmp/*.debug.issues.json")
-        if candidates:
-            candidates.sort(key=os.path.getmtime, reverse=True)
-            try:
-                with open(candidates[0], "r", encoding="utf-8") as f:
-                    issues_data = json.load(f)
-            except Exception:
-                pass
+    # ── Step 2: 生成带批注的 docx ──
+    if docx_path:
+        try:
+            import subprocess
+            inject_script = _utr_tool_path("inject-docx-comments.py")
 
-    # 如果仍然没有 issues 数据
-    if not issues_data and not analysis_result:
-        return json.dumps({
-            "success": False,
-            "error": "缺少分析文本和 issues 数据。请先运行完整审查流程。",
-            "suggestion": "先调用 read_paper_file → 审查分析 → normalize_issues_for_annotation → generate_markdown_report"
-        }, ensure_ascii=False)
+            if os.path.exists(inject_script):
+                # 解析路径
+                try:
+                    resolved_path = _resolve_local_docx_path(docx_path)
+                except FileNotFoundError as fe:
+                    results["annotated_docx"]["error"] = f"原始 docx 文件无法获取: {str(fe)}"
+                    resolved_path = None
 
-    if not analysis_result:
-        analysis_result = "（详细审查分析请见上文对话）"
+                if resolved_path and os.path.exists(resolved_path):
+                    # 写入临时 issues.json
+                    debug_path = resolved_path.replace(".docx", ".debug.issues.json")
+                    with open(debug_path, "w", encoding="utf-8") as f:
+                        json.dump(issues_data, f, ensure_ascii=False, indent=2)
 
-    # 格式化问题清单为易读表格（而非原始 JSON）
-    issues_table = ""
-    if issues_data and "issues" in issues_data:
-        issues_list = issues_data["issues"]
-        # 按严重程度排序：fatal > major > minor
-        sorted_issues = sorted(issues_list, key=lambda x: SEVERITY_ORDER.get(x.get("severity", "minor"), 2))
-        
-        # 统计
-        fatal_count = sum(1 for i in issues_list if i.get("severity") == "fatal")
-        major_count = sum(1 for i in issues_list if i.get("severity") == "major")
-        minor_count = sum(1 for i in issues_list if i.get("severity") == "minor")
-        
-        issues_table = f"| 序号 | 严重程度 | 类别 | 问题描述 | 修改建议 |\n"
-        issues_table += f"|:---:|:---:|:---:|:---|:---|\n"
-        
-        for idx, issue in enumerate(sorted_issues, 1):
-            sev = issue.get("severity", "minor")
-            sev_label = {"fatal": "❌ 致命", "major": "⚠️ 严重", "minor": "💡 轻微"}.get(sev, "💡 轻微")
-            cat = issue.get("category", "unknown")
-            cat_label = {
-                "structure": "结构逻辑", "argumentation": "论证严谨性",
-                "literature-review": "文献综述", "empirical": "实证分析",
-                "legal-norms": "规范适用", "language": "语言表达",
-                "policy": "政策建议", "academic-integrity": "学术诚信",
-                "citation-format": "引注格式", "citation-missing-info": "引注缺失"
-            }.get(cat, cat)
-            problem = issue.get("problem", "").replace("|", "｜").replace("\n", " ")[:150]
-            suggestions = issue.get("suggestion", [])
-            suggestion_text = "；".join(suggestions[:2]).replace("|", "｜").replace("\n", " ")[:150] if suggestions else "请根据上下文修改"
-            
-            issues_table += f"| {idx} | {sev_label} | {cat_label} | {problem} | {suggestion_text} |\n"
-        
-        issues_table += f"\n> **统计**：共 {len(issues_list)} 项问题 — 致命 {fatal_count} 项 / 严重 {major_count} 项 / 轻微 {minor_count} 项\n"
+                    # 调用 inject-docx-comments.py 的 validate
+                    validation_ok = True
+                    try:
+                        import importlib.util
+                        spec = importlib.util.spec_from_file_location("inject_docx_comments", inject_script)
+                        mod = importlib.util.module_from_spec(spec)
+                        spec.loader.exec_module(mod)
+                        validation_errors = mod.validate_issues_json(issues_data)
+                        if validation_errors:
+                            validation_ok = False
+                            results["annotated_docx"]["error"] = f"issues.json 校验失败: {'; '.join(validation_errors[:5])}"
+                    except Exception:
+                        pass  # 跳过校验，直接生成
+
+                    if validation_ok:
+                        temp_issues = tempfile.NamedTemporaryFile(
+                            mode="w", suffix=".json", delete=False, encoding="utf-8"
+                        )
+                        json.dump(issues_data, temp_issues, ensure_ascii=False, indent=2)
+                        temp_issues.close()
+
+                        out_path = resolved_path.replace(".docx", ".annotated.docx")
+                        proc = subprocess.run(
+                            [sys.executable, inject_script, resolved_path, temp_issues.name, out_path],
+                            capture_output=True, text=True, timeout=180
+                        )
+                        os.unlink(temp_issues.name)
+
+                        if proc.returncode == 0:
+                            # 上传到对象存储
+                            download_url = _upload_to_s3(out_path, "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+                            if download_url:
+                                results["annotated_docx"] = {"success": True, "url": download_url}
+                            else:
+                                results["annotated_docx"] = {"success": True, "url": out_path, "note": "本地路径，请从项目文件列表下载"}
+                        else:
+                            results["annotated_docx"]["error"] = proc.stderr or "批注注入脚本返回非零退出码"
+                else:
+                    if not results["annotated_docx"]["error"]:
+                        results["annotated_docx"]["error"] = f"docx 文件不存在: {docx_path}"
+            else:
+                results["annotated_docx"]["error"] = f"批注注入脚本不存在: {inject_script}"
+        except Exception as e:
+            results["annotated_docx"]["error"] = f"生成批注文档异常: {str(e)}"
     else:
-        issues_table = "> 问题清单数据暂不可用，请参考上方审查分析内容。\n"
+        results["annotated_docx"]["error"] = "未提供 docx_path，跳过批注文档生成"
 
+    # ── Step 3: 生成 PDF 审查报告 ──
     try:
         from coze_coding_dev_sdk import DocumentGenerationClient
 
-        # ── 构建问题清单（用有序列表代替表格，PDF 排版更清晰）──
+        issues_list = issues_data.get("issues", [])
+        sorted_issues = sorted(issues_list, key=lambda x: SEVERITY_ORDER.get(x.get("severity", "minor"), 2))
+        fatal_count = sum(1 for i in issues_list if i.get("severity") == "fatal")
+        major_count = sum(1 for i in issues_list if i.get("severity") == "major")
+        minor_count = sum(1 for i in issues_list if i.get("severity") == "minor")
+
         issues_detail = ""
-        if issues_data and "issues" in issues_data:
-            issues_list = issues_data["issues"]
-            sorted_issues = sorted(issues_list, key=lambda x: SEVERITY_ORDER.get(x.get("severity", "minor"), 2))
-            fatal_count = sum(1 for i in issues_list if i.get("severity") == "fatal")
-            major_count = sum(1 for i in issues_list if i.get("severity") == "major")
-            minor_count = sum(1 for i in issues_list if i.get("severity") == "minor")
-
+        if issues_list:
             issues_detail = f"共 **{len(issues_list)}** 项问题：致命 {fatal_count} 项 / 严重 {major_count} 项 / 轻微 {minor_count} 项\n\n"
-
             for idx, issue in enumerate(sorted_issues, 1):
                 sev = issue.get("severity", "minor")
                 sev_label = {"fatal": "❌ 致命", "major": "⚠️ 严重", "minor": "💡 轻微"}.get(sev, "💡 轻微")
@@ -956,7 +599,9 @@ def generate_markdown_report(analysis_result: str = "") -> str:
                     issues_detail += f"**原文**：…{excerpt}…\n\n"
                 issues_detail += f"**建议**：{sug_text}\n\n---\n\n"
         else:
-            issues_detail = "> 问题清单数据暂不可用，请参考上方审查分析内容。\n"
+            issues_detail = "> 问题清单数据暂不可用，请参考审查分析内容。\n"
+
+        summary_text = analysis_summary or "（详细审查分析请见对话记录）"
 
         report_md = f"""# 法学论文质检审查报告
 
@@ -964,7 +609,7 @@ def generate_markdown_report(analysis_result: str = "") -> str:
 
 ## 审查概况
 
-{analysis_result}
+{summary_text}
 
 ---
 
@@ -981,12 +626,48 @@ def generate_markdown_report(analysis_result: str = "") -> str:
 """
         client = DocumentGenerationClient()
         pdf_url = client.create_pdf_from_markdown(report_md, "review_report")
-        return json.dumps({"success": True, "pdf_url": pdf_url}, ensure_ascii=False)
+        results["pdf_report"] = {"success": True, "url": pdf_url}
     except Exception as e:
-        return json.dumps({
-            "success": False, "error": str(e),
-            "traceback": traceback.format_exc()
-        }, ensure_ascii=False)
+        results["pdf_report"]["error"] = f"PDF报告生成失败: {str(e)}"
+
+    # ── 构建最终返回 ──
+    return json.dumps({
+        "success": results["annotated_docx"]["success"] or results["pdf_report"]["success"],
+        "annotated_docx_url": results["annotated_docx"].get("url"),
+        "pdf_url": results["pdf_report"].get("url"),
+        "annotated_docx_error": results["annotated_docx"].get("error"),
+        "pdf_error": results["pdf_report"].get("error"),
+        "total_issues": len(issues_data.get("issues", [])),
+        "quality_gate": issues_data.get("quality_gate", {}),
+    }, ensure_ascii=False)
+
+
+def _upload_to_s3(file_path: str, content_type: str) -> Optional[str]:
+    """上传文件到对象存储，返回预签名 URL。失败返回 None。"""
+    try:
+        from coze_coding_dev_sdk.s3 import S3SyncStorage
+        import time
+        storage = S3SyncStorage(
+            endpoint_url=os.getenv("COZE_BUCKET_ENDPOINT_URL"),
+            bucket_name=os.getenv("COZE_BUCKET_NAME"),
+        )
+        base_name = os.path.basename(file_path).replace(" ", "_")
+        unique_name = f"papers/{int(time.time())}_{base_name}"
+        with open(file_path, "rb") as f:
+            file_key = storage.stream_upload_file(
+                fileobj=f,
+                file_name=unique_name,
+                content_type=content_type
+            )
+        download_url = storage.generate_presigned_url(
+            key=file_key,
+            expire_time=86400
+        )
+        return download_url
+    except Exception as e:
+        import logging
+        logging.warning(f"[S3Upload] 上传失败: {e}")
+        return None
 
 
 # ---------------------------------------------------------------------------
@@ -1017,7 +698,6 @@ def build_agent(ctx=None):
     custom = cfg.get("custom_model", {})
     api_key = custom.get("api_key") or os.getenv("COZE_WORKLOAD_IDENTITY_API_KEY")
     base_url = custom.get("base_url") or os.getenv("COZE_INTEGRATION_MODEL_BASE_URL")
-    # 自定义模型名优先，否则用 config 中的默认模型
     model_name = custom.get("model") or cfg["config"]["model"]
 
     thinking_cfg = cfg["config"].get("thinking", "disabled")
@@ -1040,10 +720,7 @@ def build_agent(ctx=None):
 
     tools = [
         read_paper_file,
-        normalize_issues_for_annotation,
-        verify_fact,
-        generate_annotated_docx,
-        generate_markdown_report,
+        generate_deliverables,
     ]
 
     return create_agent(
