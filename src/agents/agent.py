@@ -294,16 +294,28 @@ def read_paper_file(file_path: str) -> str:
     if not result["success"]:
         return json.dumps(result, ensure_ascii=False)
     paper_text = result["text"]
-    preview = paper_text[:5000]
+
+    # 论文文本太长（可能10万+字符），不传给LLM以避免上下文溢出
+    # 改为存储在/tmp，供后续工具直接访问
+    import hashlib, pickle, os as _os
+    _os.makedirs("/tmp", exist_ok=True)
+    cache_key = hashlib.md5(file_path.encode()).hexdigest()
+    cache_file = f"/tmp/paper_cache_{cache_key}.pkl"
+    with open(cache_file, "wb") as f:
+        pickle.dump({"text": paper_text, "local_path": local_docx_path}, f)
+
+    # LLM只需要：文件信息 + 摘要预览（前3000字）
+    preview = paper_text[:3000]
     return json.dumps({
         "success": True,
         "format": result.get("format"),
         "file_name": result.get("file_name"),
         "total_chars": len(paper_text),
         "local_docx_path": local_docx_path,
-        "full_paper_text": paper_text,
+        "paper_cache_key": cache_key,
         "text_preview": preview,
-        "full_text_available": True
+        "full_text_available": True,
+        "note": "完整论文内容已缓存，generate_deliverables 将读取全文生成批注"
     }, ensure_ascii=False)
 
 
