@@ -10,7 +10,21 @@ import cozeloop
 import uvicorn
 import time
 from fastapi import FastAPI, HTTPException, Request, UploadFile, File as FastAPIFile
-from fastapi.responses import StreamingResponse, JSONResponse
+from fastapi.responses import StreamingResponse as FastapiStreamingResponse, JSONResponse
+
+
+class NoBufferingStreamingResponse(FastapiStreamingResponse):
+    """StreamingResponse that disables proxy buffering for real-time SSE events."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.headers["X-Accel-Buffering"] = "no"
+        self.headers["Cache-Control"] = "no-cache"
+        self.headers["Connection"] = "keep-alive"
+
+
+# Monkey-patch StreamingResponse to always use no-buffering version
+StreamingResponse = NoBufferingStreamingResponse
 from langchain_core.runnables import RunnableConfig
 from langgraph.graph import StateGraph, END
 from langgraph.graph.state import CompiledStateGraph
@@ -136,7 +150,7 @@ class GraphService:
             run_config = init_run_config(graph, ctx)  # vibeflow
 
         # 设置递归上限，防止 Agent 无限循环（默认25太大，改为15）
-        run_config["recursion_limit"] = 15
+        run_config["recursion_limit"] = 100
 
         is_workflow = not graph_helper.is_agent_proj()
 

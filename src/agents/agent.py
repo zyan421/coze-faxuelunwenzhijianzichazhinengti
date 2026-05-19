@@ -65,22 +65,48 @@ def _utr_tool_path(name: str) -> str:
     return os.path.join(UTR_BUNDLE, "unified-thesis-reviewer", "tools", name)
 
 
+def _download_url_to_binary(url: str) -> tuple[bytes, str]:
+    """下载 URL 内容，返回 (二进制数据, 文件名)。支持带 query string 的 URL。"""
+    import requests
+    resp = requests.get(url, timeout=60, allow_redirects=True)
+    if resp.status_code != 200:
+        raise FileNotFoundError(f"URL 下载失败，状态码 {resp.status_code}: {url}")
+    # 从 Content-Disposition 或 URL 解析文件名
+    cd = resp.headers.get("content-disposition", "")
+    import re
+    fname_match = re.search(r'filename[^;=\n]*=(?:["\']?)([^\n;"\']*)', cd)
+    if fname_match:
+        fname = fname_match.group(1).strip().strip('"\'')
+    else:
+        # 从 URL path 中提取文件名
+        from urllib.parse import urlparse
+        parsed = urlparse(url)
+        path_parts = parsed.path.split("/")
+        fname = path_parts[-1] if path_parts[-1] else "downloaded.file"
+        if "?" in fname:
+            fname = fname.split("?")[0]
+    if not fname or fname == "downloaded.file":
+        fname = "downloaded.docx"
+    return resp.content, fname
+
+
+def _is_docx_bytes(data: bytes) -> bool:
+    """通过魔数判断是否为 DOCX（ZIP 格式）。"""
+    return data[:2] == b"PK"
+
+
 def _resolve_local_docx_path(file_path: str) -> str:
     """将 URL / file_id / 本地路径统一解析为本地 .docx 二进制文件路径。"""
     path = file_path.strip()
 
     # URL → 下载二进制文件到 /tmp
     if path.startswith("http://") or path.startswith("https://"):
-        import requests
-        resp = requests.get(path, timeout=60)
-        if resp.status_code != 200:
-            raise FileNotFoundError(f"URL 下载失败，状态码 {resp.status_code}: {path}")
-        fname = path.split("/")[-1].split("?")[0] or "downloaded.docx"
+        data, fname = _download_url_to_binary(path)
         if not fname.endswith(".docx"):
             fname += ".docx"
         tmp_path = os.path.join("/tmp", f"utr_{int(__import__('time').time())}_{fname}")
         with open(tmp_path, "wb") as f:
-            f.write(resp.content)
+            f.write(data)
         return tmp_path
 
     # Coze file_id → 解析为本地路径
@@ -98,25 +124,128 @@ def _resolve_local_docx_path(file_path: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# 底层读取函数
+# 底层读取函数（本地文件）
 # ---------------------------------------------------------------------------
+def _read_local_docx(path: str) -> dict:
+    """使用 extract-docx.py 脚本或 python-docx 读取本地 DOCX 文件。"""
+    import subprocess
+    extract_script = _utr_tool_path("extract-docx.py")
+    tmp_out = None
+    if os.path.exists(extract_script):
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", suffix=".txt", delete=False) as tf:
+            tmp_out = tf.name
+        try:
+            proc = subprocess.run(
+                [sys.executable, extract_script, path, tmp_out],
+                capture_output=True, text=True, timeout=120
+            )
+            if proc.returncode == 0 and os.path.exists(tmp_out):
+                with open(tmp_out, encoding="utf-8") as f:
+                    text = f.read()
+                os.unlink(tmp_out)
+                return {"success": True, "text": text, "format": "docx",
+                        "file_name": os.path.basename(path),
+                        "total_chars": len(text),
+                        "text_preview": text[:5000] if text else "",
+                        "full_text_available": True}
+        finally:
+            if tmp_out and os.path.exists(tmp_out):
+                try:
+                    os.unlink(tmp_out)
+                except Exception:
+                    pass
+    from docx import Document
+    doc = Document(path)
+    W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+    def full_para_text(p_el):
+        parts = []
+        for child in p_el.iter():
+            tag = child.tag.split("}", 1)[-1] if "}" in child.tag else child.tag
+            if tag == "t" and child.text:
+                parts.append(child.text)
+            elif tag == "tab":
+                parts.append("\t")
+        return "".join(parts)
+    body_el = doc.element.body  # type: ignore[attr-defined]
+    paragraphs = [full_para_text(p_el) for p_el in body_el.iter(f"{{{W_NS}}}p")]
+    paragraphs = [p for p in paragraphs if p.strip()]
+    text = "\n".join(paragraphs)
+    return {"success": True, "text": text, "format": "docx",
+            "file_name": os.path.basename(path),
+            "total_chars": len(text),
+            "text_preview": text[:5000] if text else "",
+            "full_text_available": True}
+
+
+def _read_local_pdf(path: str) -> dict:
+    """使用 PyMuPDF (fitz) 读取本地 PDF 文件。"""
+    try:
+        import fitz
+        doc = fitz.open(path)
+        if doc.is_encrypted:
+            doc.close()
+            return {"success": False, "error": "PDF 已加密", "is_encrypted": True}
+        total_chars = sum(len(page.get_text()) for page in doc)
+        if total_chars == 0:
+            doc.close()
+            return {"success": False, "error": "PDF 为扫描件或图片型 PDF，无法提取文本。请换用 Word 版本或 OCR 后再试。", "is_scanned": True}
+        texts = []
+        for i, page in enumerate(doc):
+            texts.append(f"--- Page {i + 1} ---\n{page.get_text()}")
+        doc.close()
+        return {"success": True, "text": "\n".join(texts), "format": "pdf",
+                "page_count": len(texts), "total_chars": total_chars,
+                "file_name": os.path.basename(path)}
+    except ImportError:
+        return {"success": False, "error": "PyMuPDF (fitz) 未安装，无法读取 PDF"}
+
+
 def _read_text(file_path: str) -> dict:
     """从本地路径或公网 URL 读取文本。"""
     try:
         path = file_path.strip()
         if path.startswith("http://") or path.startswith("https://"):
-            import requests
-            resp = requests.get(path, timeout=30)
-            if resp.status_code == 200:
-                content = resp.text
+            data, fname = _download_url_to_binary(path)
+            # 判断真实格式（通过魔数或文件名）
+            ext = ".docx" if fname.lower().endswith(".docx") or _is_docx_bytes(data) else \
+                   ".pdf" if fname.lower().endswith(".pdf") else \
+                   ".txt"
+            if ext == ".docx":
+                # 下载为二进制，解析 DOCX
+                import tempfile as _tempfile, subprocess as _subprocess, sys as _sys
+                tmp_docx = None
+                try:
+                    with _tempfile.NamedTemporaryFile(mode="wb", suffix=".docx", delete=False) as _tf:
+                        _tf.write(data)
+                        tmp_docx = _tf.name
+                    return _read_local_docx(tmp_docx, os.path.basename(fname))
+                finally:
+                    if tmp_docx and os.path.exists(tmp_docx):
+                        try: os.unlink(tmp_docx)
+                        except: pass
+            elif ext == ".pdf":
+                # 下载为二进制，解析 PDF
+                import tempfile as _tempfile, fitz as _fitz
+                tmp_pdf = None
+                try:
+                    with _tempfile.NamedTemporaryFile(mode="wb", suffix=".pdf", delete=False) as _tf:
+                        _tf.write(data)
+                        tmp_pdf = _tf.name
+                    result = _read_local_pdf(tmp_pdf, os.path.basename(fname))
+                    result["file_name"] = os.path.basename(fname)
+                    return result
+                finally:
+                    if tmp_pdf and os.path.exists(tmp_pdf):
+                        try: os.unlink(tmp_pdf)
+                        except: pass
             else:
-                return {"success": False, "error": f"URL 返回状态码 {resp.status_code}"}
-            fmt = "docx" if path.endswith(".docx") else \
-                  "pdf" if path.endswith(".pdf") else \
-                  "txt" if path.endswith(".txt") else \
-                  "md" if path.endswith(".md") else "txt"
-            return {"success": True, "text": content, "format": fmt,
-                    "file_name": path.split("/")[-1]}
+                # 纯文本格式
+                try:
+                    content = data.decode("utf-8")
+                except UnicodeDecodeError:
+                    content = data.decode("gbk", errors="ignore")
+                return {"success": True, "text": content, "format": ext.lstrip("."),
+                        "file_name": os.path.basename(fname)}
 
         if path.startswith("file_") and not os.path.exists(path):
             try:
@@ -133,75 +262,10 @@ def _read_text(file_path: str) -> dict:
         ext = os.path.splitext(path)[1].lower()
 
         if ext == ".docx":
-            import subprocess
-            extract_script = _utr_tool_path("extract-docx.py")
-            tmp_out = None
-            if os.path.exists(extract_script):
-                with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", suffix=".txt", delete=False) as tf:
-                    tmp_out = tf.name
-                try:
-                    proc = subprocess.run(
-                        [sys.executable, extract_script, path, tmp_out],
-                        capture_output=True, text=True, timeout=120
-                    )
-                    if proc.returncode == 0 and os.path.exists(tmp_out):
-                        with open(tmp_out, encoding="utf-8") as f:
-                            text = f.read()
-                        os.unlink(tmp_out)
-                        return {"success": True, "text": text, "format": "docx",
-                                "file_name": os.path.basename(path),
-                                "total_chars": len(text),
-                                "text_preview": text[:5000] if text else "",
-                                "full_text_available": True}
-                finally:
-                    if tmp_out and os.path.exists(tmp_out):
-                        try:
-                            os.unlink(tmp_out)
-                        except Exception:
-                            pass
-            # Fall through to python-docx fallback
-            from docx import Document
-            doc = Document(path)
-            W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
-            def full_para_text(p_el):
-                parts = []
-                for child in p_el.iter():
-                    tag = child.tag.split("}", 1)[-1] if "}" in child.tag else child.tag
-                    if tag == "t" and child.text:
-                        parts.append(child.text)
-                    elif tag == "tab":
-                        parts.append("\t")
-                return "".join(parts)
-            body_el = doc.element.body  # type: ignore[attr-defined]
-            paragraphs = [full_para_text(p_el) for p_el in body_el.iter(f"{{{W_NS}}}p")]
-            paragraphs = [p for p in paragraphs if p.strip()]
-            text = "\n".join(paragraphs)
-            return {"success": True, "text": text, "format": "docx",
-                    "file_name": os.path.basename(path),
-                    "total_chars": len(text),
-                    "text_preview": text[:5000] if text else "",
-                    "full_text_available": True}
+            return _read_local_docx(path)
 
         if ext == ".pdf":
-            try:
-                import fitz
-                doc = fitz.open(path)
-                if doc.is_encrypted:
-                    doc.close()
-                    return {"success": False, "error": "PDF 已加密", "is_encrypted": True}
-                total_chars = sum(len(page.get_text()) for page in doc)
-                if total_chars == 0:
-                    doc.close()
-                    return {"success": False, "error": "PDF 为扫描件或图片型 PDF，无法提取文本。请换用 Word 版本或 OCR 后再试。", "is_scanned": True}
-                texts = []
-                for i, page in enumerate(doc):
-                    texts.append(f"--- Page {i + 1} ---\n{page.get_text()}")
-                doc.close()
-                return {"success": True, "text": "\n".join(texts), "format": "pdf",
-                        "page_count": len(texts), "total_chars": total_chars,
-                        "file_name": os.path.basename(path)}
-            except ImportError:
-                return {"success": False, "error": "PyMuPDF (fitz) 未安装，无法读取 PDF"}
+            return _read_local_pdf(path)
 
         with open(path, "r", encoding="utf-8", errors="ignore") as f:
             content = f.read()
