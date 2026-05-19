@@ -271,6 +271,8 @@ let pendingFile = null;
 let heartbeatTimer = null;
 let elapsedTimer = null;
 let streamStartTime = null;
+let lastEventTime = 0;       // timestamp of last SSE data received
+let connCheckTimer = null;   // connection health check interval
 
 // ===== HISTORY (localStorage) =====
 const HISTORY_KEY = 'thesis_review_history';
@@ -811,17 +813,37 @@ async function startStream(query, bubble) {
 
     startHeartbeat();
     setStatus('working', 'Agent 思考中...');
+    lastEventTime = Date.now();
+    // Connection health check: warn if no data for 60s, error if 120s
+    connCheckTimer = setInterval(() => {
+      const silence = (Date.now() - lastEventTime) / 1000;
+      if (silence > 120) {
+        // Connection likely dead
+        appendToBubble(bubble, `<div style="color:#e53935;margin-top:8px;padding:8px 12px;background:#ffebee;border-radius:8px">❌ 连接已中断（超过2分钟无数据）。<br>可能原因：模型API超时或网络问题。<br>请检查模型设置后重新开始。</div>`);
+        setStatus('error', '连接中断');
+        stopHeartbeat();
+        _stopGlobalStepTimer();
+        if (connCheckTimer) { clearInterval(connCheckTimer); connCheckTimer = null; }
+      } else if (silence > 60) {
+        // Long silence warning
+        const warnEl = bubble.querySelector('.conn-warn');
+        if (!warnEl) {
+          appendToBubble(bubble, `<div class="conn-warn" style="color:#e65100;font-size:13px;margin-top:6px;padding:6px 10px;background:#fff3e0;border-radius:6px">⚠️ 已超过60秒未收到数据，连接可能不稳定。如果持续无响应，请检查模型设置。</div>`);
+        }
+      }
+    }, 10000);
 
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
 
+      lastEventTime = Date.now();  // any data = connection alive
       buffer += decoder.decode(value, { stream: true });
       const lines = buffer.split('\n');
       buffer = lines.pop() || '';
 
       for (const line of lines) {
-        if (!line.startsWith('data: ')) continue;
+        if (!line.startsWith('data: ')) continue;   // skip keepalive comments
         const raw = line.slice(6).trim();
         if (!raw) continue;
 
@@ -914,6 +936,7 @@ async function startStream(query, bubble) {
           setStatus('working', 'Agent 分析结果中...');
         } else if (type === 'message_end') {
           stopHeartbeat();
+          if (connCheckTimer) { clearInterval(connCheckTimer); connCheckTimer = null; }
           finishProgress();
           if (fullAnswer) {
             let ac = bubble.querySelector('.answer-content');
@@ -927,6 +950,7 @@ async function startStream(query, bubble) {
           setStatus('ready', '审查完成');
         } else if (type === 'error') {
           stopHeartbeat();
+          if (connCheckTimer) { clearInterval(connCheckTimer); connCheckTimer = null; }
           finishProgress();
           const c = data.content || {};
           const er = c.error || {};
@@ -974,6 +998,7 @@ async function startStream(query, bubble) {
     Object.values(stepTimerIds).forEach(id => clearInterval(id));
     stepTimerIds = {};
     _stopGlobalStepTimer();
+    if (connCheckTimer) { clearInterval(connCheckTimer); connCheckTimer = null; }
     saveCurrentConv();
   }
 }

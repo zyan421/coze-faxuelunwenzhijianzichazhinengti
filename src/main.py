@@ -237,6 +237,67 @@ class GraphService:
             yield chunk
 
 
+# ---------------------------------------------------------------------------
+# SSE keepalive wrapper — prevents proxy/CDN from dropping idle connections
+# ---------------------------------------------------------------------------
+_KEEPALIVE_INTERVAL = 15  # seconds
+
+async def _keepalive_wrap(generator, interval: int = _KEEPALIVE_INTERVAL):
+    """
+    Wrap an async SSE generator with keepalive comments.
+
+    Every ``interval`` seconds of silence from the upstream generator,
+    emit an SSE comment line ``: keepalive\\n\\n`` so that reverse-proxies,
+    load-balancers and CDNs do not close the connection due to inactivity.
+    The browser's EventSource / fetch reader ignores comment lines that
+    start with ``:``, so they are invisible to the application logic.
+    """
+    import asyncio as _asyncio
+    queue: _asyncio.Queue = _asyncio.Queue()
+
+    async def _producer():
+        try:
+            async for chunk in generator:
+                await queue.put(("chunk", chunk))
+        except Exception as exc:
+            await queue.put(("error", exc))
+        finally:
+            await queue.put(("done", None))
+
+    async def _ticker():
+        try:
+            while True:
+                await _asyncio.sleep(interval)
+                await queue.put(("ka", None))
+        except _asyncio.CancelledError:
+            pass
+
+    prod = _asyncio.create_task(_producer())
+    tick = _asyncio.create_task(_ticker())
+
+    try:
+        while True:
+            kind, payload = await queue.get()
+            if kind == "chunk":
+                yield payload
+            elif kind == "ka":
+                # SSE comment — browsers/clients ignore lines starting with ':'
+                yield ": keepalive\n\n"
+            elif kind == "error":
+                raise payload
+            elif kind == "done":
+                break
+    finally:
+        prod.cancel()
+        tick.cancel()
+        # suppress CancelledError from tasks
+        for t in (prod, tick):
+            try:
+                await t
+            except (_asyncio.CancelledError, Exception):
+                pass
+
+
 service = GraphService()
 app = FastAPI()
 
@@ -596,7 +657,10 @@ async def http_stream_run(request: Request):
             run_opt=RunOpt(workflow_debug=workflow_debug),
         )
 
-    response = StreamingResponse(stream_generator, media_type="text/event-stream")
+    response = StreamingResponse(
+        _keepalive_wrap(stream_generator, interval=15),
+        media_type="text/event-stream",
+    )
     return response
 
 @app.post("/cancel/{run_id}")
