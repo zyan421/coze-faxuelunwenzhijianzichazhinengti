@@ -84,7 +84,7 @@ class MemoryManager:
     def _create_fallback_checkpointer(self) -> MemorySaver:
         """创建内存兜底 checkpointer"""
         self._checkpointer = MemorySaver()
-        logger.warning("Using MemorySaver as fallback checkpointer (data will not persist across restarts)")
+        logger.info("Using MemorySaver (zero-latency, sufficient for single-session checkpointing)")
         return self._checkpointer
 
     def get_checkpointer(self) -> BaseCheckpointSaver:
@@ -128,8 +128,12 @@ _memory_manager: Optional[MemoryManager] = None
 
 
 def get_memory_saver() -> BaseCheckpointSaver:
-    """获取 checkpointer，优先使用 PostgresSaver，db_url 不可用或连接失败时退化为 MemorySaver"""
+    """获取 checkpointer，强制使用 MemorySaver（零延迟）。
+    
+    注：PostgresSaver 初始化耗时 6+ 秒，会导致 Coze 平台 SSE 流超时断开。
+    MemorySaver 可满足单次对话内的 checkpoint 需求（跨工具调用状态保持）。
+    """
     global _memory_manager
     if _memory_manager is None:
         _memory_manager = MemoryManager()
-    return _memory_manager.get_checkpointer()
+    return _memory_manager._create_fallback_checkpointer()
