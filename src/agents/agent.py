@@ -452,57 +452,86 @@ def _validate_and_fix_issues(issues_data: dict, paper_text: str) -> dict:
 
 
 def _find_anchor_in_text(text: str, paper: str) -> str:
-    """在论文正文中寻找可定位的 anchor_text，返回前60码点。"""
+    """在论文正文中寻找可定位的 anchor_text，返回前60码点。
+
+    策略：
+    1. 从 text（问题描述）中提取关键词
+    2. 在 paper 中搜索含这些关键词的段落
+    3. 返回该段落中最接近关键词的连续中文文本片段（5-60字）
+    4. 完全匹配优于部分匹配
+    """
     if not paper or not text:
         return text[:60] if text else ""
 
     # 找到正文起始位置（跳过封面/目录等前置部分）
     body_start = 0
-    for marker in [r'第[一1]章', r'绪\s*论', r'引\s*言', r'一、']:
+    for marker in [r"第[一二三四五六七八九十\d]+章", r"绪\s*论", r"引\s*言", r"一、", r"摘要"]:
         m = re.search(marker, paper)
         if m:
             body_start = max(body_start, m.start())
             break
     if body_start == 0 and len(paper) > 2000:
         body_start = int(len(paper) * 0.15)
-
     body_paper = paper[body_start:]
 
-    candidates = []
-    # 1. 引号内原文引用（最高优先级）
-    for m in re.finditer(r'["""](.{4,60}?)["""]', text):
-        candidates.append((len(m.group(1)), m.group(1).strip(), 3))
-    # 2. 中文句子片段
-    for m in re.finditer(r'[\u4e00-\u9fff]{6,50}', text):
-        candidates.append((len(m.group()), m.group(), 1))
+    # 1. 引号内原文引用（最高优先级，LLM已确保这些是论文原文）
+    quoted = []
+    _QP = chr(0x201C) + chr(0x201D) + chr(0x2018) + chr(0x2019) + chr(34) + chr(39)
+    for m in re.finditer(_QP + '([\u4e00-\u9fff]{4,60}?)' + _QP, text):
+        quoted.append(m.group(1).strip())
+    for q in quoted:
+        if q in body_paper:
+            return q[:60]
+        # 去除标点后匹配
+        raw = re.sub(r"[，。、：；！？\s\-—]", "", q)
+        raw_paper = re.sub(r"[，。、：；！？\s\-—]", "", body_paper)
+        idx = raw_paper.find(raw)
+        if idx >= 0:
+            start = max(0, idx - 5)
+            end = min(len(body_paper), idx + len(raw) + 5)
+            return body_paper[start:end][:60]
 
-    # 去重并按优先级+长度排序
-    seen, unique = {}, []
-    for length, cand, priority in candidates:
-        if cand not in seen:
-            seen[cand] = True
-            unique.append((length, cand, priority))
-    unique.sort(key=lambda x: (-x[2], -x[0]))
-
-    stop_words = {"全文", "本文", "论文", "该文", "该论文", "建议", "问题", "内容", "相关",
+    # 2. 从问题描述中提取专业术语和关键词
+    stop_words = {"全文", "本文", "论文", "该文", "该论文", "建议", "问题", "内容",
                    "主要", "重要", "严重", "轻微", "具体", "有关", "研究", "分析",
-                   "湘潭大学", "毕业论文", "学士学位", "学号", "指导教师"}
-    for _, cand, _ in unique:
-        if cand in stop_words:
+                   "学术", "规范", "格式", "存在", "需要", "应当", "目前", "当前",
+                   "情况", "方面", "角度", "层面", "章节", "部分", "章节名",
+                   "湘潭大学", "毕业论文", "学士学位", "学号", "指导教师", "正文"}
+    words = re.findall(r"[\u4e00-\u9fff]{2,6}", text)
+    significant_words = [w for w in words if w not in stop_words and len(set(w)) >= 2]
+    word_scores = {}
+    for w in significant_words:
+        word_scores[w] = word_scores.get(w, 0) + len(w)
+    sorted_words = sorted(word_scores.keys(), key=lambda x: (-word_scores[x], -len(x)))[:10]
+
+    # 3. 在正文中搜索含关键词的段落
+    for keyword in sorted_words:
+        idx = body_paper.find(keyword)
+        if idx < 0:
+            raw = re.sub(r"[，。、：；\s]", "", keyword)
+            if raw and raw != keyword:
+                raw_paper2 = re.sub(r"[，。、：；\s]", "", body_paper)
+                idx = raw_paper2.find(raw)
+        if idx < 0:
             continue
-        if cand in body_paper and not any(bw in cand for bw in _COVER_BLACKLIST if len(bw) <= len(cand)):
-            return cand[:60]
+        context_start = max(0, idx - 20)
+        context_end = min(len(body_paper), idx + len(keyword) + 20)
+        context = body_paper[context_start:context_end]
+        fragments = re.findall(r"[一-鿿，。、：；！？""''()《》 	-]{5,60}", context)
+        if fragments:
+            best = max(fragments, key=lambda x: (len(re.sub(r"\s", "", x)), keyword in x))
+            clean = best.strip()
+            if clean:
+                return clean[:60]
 
-    # 降级：在正文区域搜索关键词
-    words = re.findall(r'[\u4e00-\u9fff]{4,8}', text)
-    for w in sorted(set(words), key=len, reverse=True):
-        if w not in stop_words and w in body_paper and not any(bw in w for bw in _COVER_BLACKLIST if len(bw) <= len(w)):
-            return w[:60]
+    # 4. 降级：取正文前200字中最长的中文片段
+    fragments = re.findall(r"[\u4e00-\u9fff，。、：；！？\-]{10,60}", body_paper[:200])
+    if fragments:
+        return max(fragments, key=len)[:60]
 
+    # 5. 最后降级：返回问题描述的前40字
     return text.strip()[:40][:60]
 
-
-@tool
 def generate_deliverables(docx_path: str, issues_json: str, analysis_summary: str = "") -> str:
     """一次性生成全部交付物：带批注的 .annotated.docx + PDF 审查报告。
 

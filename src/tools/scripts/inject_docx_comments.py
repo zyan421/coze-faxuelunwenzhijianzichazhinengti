@@ -232,6 +232,39 @@ class DOCXCommentInjector:
                             para, highlight_text, annotation
                         )
         
+        # ── 降级策略1: 用 excerpt 搜索（不含标点的纯文本）──
+        raw = re.sub(r'[，。！？、：；"“”''【】《》（） 	]', '', highlight_text)
+        if raw and raw != highlight_text:
+            for para_idx, para in enumerate(self.doc.paragraphs):
+                para_raw = re.sub(r'[，。！？、：；"“”''【】《》（） 	]', '', para.text)
+                if raw in para_raw:
+                    return self._insert_comment_in_paragraph(para, highlight_text, annotation)
+        
+        # ── 降级策略2: 用 chapter 关键词在对应章节段落插入 ──
+        locator = annotation.location or ''
+        if locator:
+            loc_info = self._parse_location(locator) if False else self._parse_location(locator)
+            chapter = loc_info.get('chapter') if loc_info else None
+            if chapter:
+                # 尝试在文档中找到章节标题所在段落附近插入
+                chapter_pattern = re.compile(rf'(?:^|[\n])[\s]*([第一二三四五六七八九十百\d]+章[^\n]*)')
+                chapter_found = None
+                chapter_para_idx = None
+                for pi, para in enumerate(self.doc.paragraphs):
+                    m = chapter_pattern.search(para.text)
+                    if m and chapter in m.group(1):
+                        chapter_found = m.group(1)
+                        chapter_para_idx = pi
+                        break
+                # 如果找到该章节，在其后第一个非空段落插入
+                if chapter_para_idx is not None:
+                    for j in range(chapter_para_idx + 1, len(self.doc.paragraphs)):
+                        if self.doc.paragraphs[j].text.strip():
+                            safe_text = self.doc.paragraphs[j].text[:min(20, len(self.doc.paragraphs[j].text))]
+                            return self._insert_comment_in_paragraph(
+                                self.doc.paragraphs[j], safe_text, annotation
+                            )
+        
         return False
     
     def _insert_comment_in_paragraph(
@@ -332,6 +365,22 @@ class DOCXCommentInjector:
                     para, para.text[:50], annotation
                 )
         
+        # ── 降级: 用章节名定位 ──
+        chapter = location.get('chapter', '')
+        if chapter:
+            chapter_pattern = re.compile(rf'(?:^[\n\s]*|[\n])[\s]*([第一二三四五六七八九十百\d]+章[^\n]*)')
+            for pi, para in enumerate(self.doc.paragraphs):
+                m = chapter_pattern.search(para.text)
+                if m and chapter in m.group(1):
+                    # 在该章节后第一个非空段落插入
+                    for j in range(pi + 1, len(self.doc.paragraphs)):
+                        if self.doc.paragraphs[j].text.strip():
+                            safe_text = self.doc.paragraphs[j].text[:min(20, len(self.doc.paragraphs[j].text))]
+                            return self._insert_comment_in_paragraph(
+                                self.doc.paragraphs[j], safe_text, annotation
+                            )
+                    break
+        
         return False
     
     def _add_annotation_at_end(self, annotation: Annotation) -> bool:
@@ -374,15 +423,30 @@ class DOCXCommentInjector:
             except ValueError:
                 severity = Severity.INFO
             
+            # 从 issues 字典中提取字段（支持多种字段名映射）
+            description = issue.get('description', '') or issue.get('problem', '')
+            suggestion = issue.get('suggestion', '')
+            if isinstance(suggestion, list):
+                suggestion = '；'.join(str(s) for s in suggestion[:3])
+            highlight_text = issue.get('highlight_text', '') or issue.get('anchor_text', '') or issue.get('excerpt', '')
+            # 构造 location 字符串（从 locator dict 转换）
+            locator = issue.get('locator', {}) or issue.get('location', {})
+            if isinstance(locator, dict):
+                chapter = locator.get('chapter', '')
+                para_idx = locator.get('paragraph_index', 0)
+                location_str = f"第{para_idx}段" if para_idx > 0 else (chapter if chapter else '')
+            else:
+                location_str = str(locator) if locator else ''
+            
             annotation = Annotation(
-                id=f"issue_{idx}",
+                id=issue.get('id', f"issue_{idx}"),
                 severity=severity,
-                issue_type=issue.get('type', issue.get('issue_type', 'general')),
-                description=issue.get('description', ''),
-                location=issue.get('location', ''),
-                suggestion=issue.get('suggestion', ''),
-                highlight_text=issue.get('highlight_text', ''),
-                evidence=issue.get('evidence', ''),
+                issue_type=issue.get('category', issue.get('type', issue.get('issue_type', 'general'))),
+                description=description,
+                location=location_str,
+                suggestion=str(suggestion),
+                highlight_text=highlight_text,
+                evidence=issue.get('excerpt', ''),
             )
             
             if self.add_annotation(annotation):

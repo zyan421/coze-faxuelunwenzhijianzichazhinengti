@@ -273,6 +273,8 @@ let elapsedTimer = null;
 let streamStartTime = null;
 let lastEventTime = 0;       // timestamp of last SSE data received
 let connCheckTimer = null;   // connection health check interval
+let userScrolledUp = false;  // true when user manually scrolled up during streaming
+let scrollPauseEl = null;    // DOM element for "paused" indicator
 
 // ===== HISTORY (localStorage) =====
 const HISTORY_KEY = 'thesis_review_history';
@@ -332,7 +334,7 @@ function loadConv(id) {
     div.innerHTML = `<div class="msg-avatar">${label}</div><div class="msg-wrapper"><div class="msg-bubble">${m.html}</div><div class="msg-time">${tStr}</div></div>`;
     area.appendChild(div);
   });
-  area.scrollTop = area.scrollHeight;
+  if (!userScrolledUp) area.scrollTop = area.scrollHeight;
   renderHistoryList();
 }
 
@@ -901,7 +903,12 @@ async function startStream(query, bubble) {
               bubble.appendChild(ac);
             }
             ac.innerHTML = formatAnswer(fullAnswer);
-            bubble.scrollIntoView({behavior:'smooth'});
+            if (!userScrolledUp) {
+              bubble.scrollIntoView({behavior:'smooth'});
+            } else {
+              // Show resume indicator if user scrolled up
+              showResumeIndicator();
+            }
             // Update status with preview of answer
             const preview = t.replace(/\n/g, ' ').trim().substring(0, 25);
             if (preview) setStatus('working', '📝 输出中...');
@@ -1106,8 +1113,49 @@ async function resetToDefault() {
 
 document.getElementById('settingsModal').addEventListener('click', function(e) { if (e.target === this) closeSettings(); });
 
+// ===== SCROLL MANAGEMENT =====
+let resumeIndicatorEl = null;
+
+function setupScrollListener() {
+  const chatArea = document.getElementById('chatArea');
+  if (!chatArea) return;
+  chatArea.addEventListener('scroll', function() {
+    if (!isStreaming) return;
+    const atBottom = chatArea.scrollHeight - chatArea.scrollTop - chatArea.clientHeight < 100;
+    if (!atBottom) {
+      if (!userScrolledUp) {
+        userScrolledUp = true;
+        showResumeIndicator();
+      }
+    } else {
+      if (userScrolledUp) {
+        userScrolledUp = false;
+        if (resumeIndicatorEl && resumeIndicatorEl.parentNode) resumeIndicatorEl.remove();
+      }
+    }
+  });
+}
+
+function showResumeIndicator() {
+  if (resumeIndicatorEl) return;
+  const chatArea = document.getElementById('chatArea');
+  if (!chatArea) return;
+  resumeIndicatorEl = document.createElement('button');
+  resumeIndicatorEl.id = 'resumeScroll';
+  resumeIndicatorEl.innerHTML = '🔽 恢复自动滚动';
+  resumeIndicatorEl.style.cssText = 'position:fixed;bottom:180px;right:30px;z-index:9999;padding:8px 16px;background:#1976d2;color:white;border:none;border-radius:20px;cursor:pointer;font-size:13px;box-shadow:0 2px 8px rgba(0,0,0,0.3);';
+  resumeIndicatorEl.addEventListener('click', function() {
+    userScrolledUp = false;
+    if (resumeIndicatorEl && resumeIndicatorEl.parentNode) resumeIndicatorEl.remove();
+    resumeIndicatorEl = null;
+    const ca = document.getElementById('chatArea');
+    if (ca) ca.scrollTop = ca.scrollHeight;
+  });
+  document.body.appendChild(resumeIndicatorEl);
+}
+
 // ===== INIT =====
-loadModelInfo();
+setupScrollListener();
 if (!getActiveId()) setActiveId('conv-' + Date.now());
 </script>
 </body>

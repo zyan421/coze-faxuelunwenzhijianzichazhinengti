@@ -1,0 +1,248 @@
+{
+  "schema_version": "1.0",
+  "issues": [
+    {
+      "id": "thesis-argumentation-001",
+      "source": "thesis",
+      "category": "argumentation",
+      "severity": "fatal",
+      "scope": "paragraph",
+      "locator": {
+        "chapter": "摘要",
+        "paragraph_index": 1
+      },
+      "excerpt": "如设置例外情形对主体范围作适当的扩大、彩礼的婚姻目的实现标准",
+      "anchor_text": "如设置例外情形对主体范围作适当的扩大、彩礼的婚姻目的实现标准",
+      "problem": "该句缺少谓语动词，结构不完整，存在语病，影响论文的专业性和可读性。",
+      "suggestion": [
+        "修改为：'例如，可通过设置例外情形适当扩大主体范围、明确彩礼的婚姻目的实现标准、为不属于彩礼的三类财物设置量化上限……'",
+        "建议在定稿前逐句通读全文，排查类似语病问题。"
+      ],
+      "group_id": "g-001"
+    },
+    {
+      "id": "thesis-argumentation-002",
+      "source": "thesis",
+      "category": "argumentation",
+      "severity": "fatal",
+      "scope": "paragraph",
+      "locator": {
+        "chapter": "第一章 绪论",
+        "paragraph_index": 3
+      },
+      "excerpt": "基于湖南省78份裁判，可见存在原被告诉讼主体类型复杂",
+      "anchor_text": "基于湖南省78份裁判，可见存在原被告诉讼主体类型复杂",
+      "problem": "仅选取湖南省78份裁判文书作为分析样本，未说明样本的选取标准、时间跨度、法院层级分布等关键信息，样本代表性存疑。",
+      "suggestion": [
+        "明确说明样本来源（如中国裁判文书网）、检索关键词、筛选标准",
+        "报告样本的时间分布（如2020-2025年）、地域分布（湖南省内各市县）、法院层级分布（基层法院/中级法院）",
+        "讨论样本局限性，说明78份样本能否代表湖南省彩礼纠纷裁判的整体情况"
+      ],
+      "group_id": "g-002"
+    },
+    {
+      "id": "thesis-argumentation-003",
+      "source": "thesis",
+      "category": "argumentation",
+      "severity": "major",
+      "scope": "paragraph",
+      "locator": {
+        "chapter": "第三章 实证分析",
+        "paragraph_index": 2
+      },
+      "excerpt": "返还比例参考因素权重不同导致裁判标准不统一",
+      "anchor_text": "返还比例参考因素权重不同导致裁判标准不统一",
+      "problem": "将'同案不同判'现象直接归因于'返还比例参考因素权重不同'，但未排除其他可能的解释变量（如地区经济发展水平差异、法官自由裁量权的合理行使范围等），因果关系论证不够严密。",
+      "suggestion": [
+        "在分析'同案不同判'原因时，增加对控制变量的讨论",
+        "说明在控制案件相似性的前提下，哪些因素真正导致了裁判差异",
+        "可考虑使用简单的回归分析检验变量之间的统计关系"
+      ],
+      "group_id": "g-003"
+    },
+    {
+      "id": "thesis-structure-004",
+      "source": "thesis",
+      "category": "structure",
+      "severity": "major",
+      "scope": "chapter",
+      "locator": {
+        "chapter": "第一章 绪论",
+        "paragraph_index": 1
+      },
+      "excerpt": "",
+      "anchor_text": "彩礼返还规则研究——基于湖南省法院案例的实证分析",
+      "problem": "绪论部分篇幅过长，包含研究背景、文献综述、研究方法等多个板块，但部分内容与核心论证关联度不高，导致绪论与正文比例失衡。",
+      "suggestion": [
+        "压缩绪论中与核心论证关联不紧密的历史背景叙述",
+        "将文献综述中已充分讨论的内容适当精简",
+        "将更多篇幅分配给实证分析和对策建议部分"
+      ],
+      "group_id": "g-004"
+    },
+    {
+      "id": "thesis-literature-review-005",
+      "source": "thesis",
+      "category": "literature-review",
+      "severity": "major",
+      "scope": "paragraph",
+      "locator": {
+        "chapter": "第一章 文献综述",
+        "paragraph_index": 1
+      },
+      "excerpt": "彩礼返还规则主要有《民法典婚姻家庭编解释（一）》与《最高人民法院关于审理涉彩礼纠纷案件适用法律若干问题的规定》",
+      "anchor_text": "彩礼返还规则主要有《民法典婚姻家庭编解释（一）》与《最高人民法院关于审理涉彩礼纠纷案件适用法律若干问题的规定》",
+      "problem": "文献综述主要引用了两部规范性文件，但对学界关于彩礼返还的学术论文引用较少，特别是近三年（2023-2025年）的核心期刊论文覆盖不足。",
+      "suggestion": [
+        "补充检索中国知网等数据库，增加对近三年CSSCI来源期刊中彩礼返还相关论文的引用和评述",
+        "特别关注2024年司法解释出台后的最新研究成果",
+        "在文献综述末尾增设'研究述评'段落，明确指出现有研究的不足和本文要填补的空白"
+      ],
+      "group_id": "g-005"
+    },
+    {
+      "id": "thesis-empirical-006",
+      "source": "thesis",
+      "category": "empirical",
+      "severity": "major",
+      "scope": "paragraph",
+      "locator": {
+        "chapter": "第三章 实证分析",
+        "paragraph_index": 3
+      },
+      "excerpt": "基于湖南省78份裁判，可见存在原被告诉讼主体类型复杂",
+      "anchor_text": "基于湖南省78份裁判，可见存在原被告诉讼主体类型复杂",
+      "problem": "实证分析主要采用描述性统计（频数、百分比），未使用任何推断性统计方法（如回归分析、卡方检验等）来检验变量之间的关联性，数据分析方法过于简单。",
+      "suggestion": [
+        "增加交叉分析或简单的回归分析",
+        "检验关键变量（如彩礼金额、共同生活时间、是否登记结婚等）与返还比例之间的统计关系",
+        "在附录中提供数据统计表，列出每份裁判文书的关键变量编码，便于核查"
+      ],
+      "group_id": "g-006"
+    },
+    {
+      "id": "thesis-policy-007",
+      "source": "thesis",
+      "category": "policy",
+      "severity": "major",
+      "scope": "paragraph",
+      "locator": {
+        "chapter": "第四章 对策建议",
+        "paragraph_index": 2
+      },
+      "excerpt": "构建多要素协同的动态体系协助法官在彩礼纠纷案件中对诉讼主体认定",
+      "anchor_text": "构建多要素协同的动态体系协助法官在彩礼纠纷案件中对诉讼主体认定",
+      "problem": "提出'构建多要素协同的动态体系'的建议，但未具体说明该体系的运作机制、各要素的权重如何确定、法官如何在个案中操作该体系等关键问题，可操作性不足。",
+      "suggestion": [
+        "以表格或流程图形式呈现'动态返还体系'的具体操作步骤",
+        "明确要素识别清单和各要素的权重赋值建议",
+        "提供综合计算返还比例的公式或参考区间",
+        "增加对建议可能产生的负面效应的讨论，提出配套措施或例外规则"
+      ],
+      "group_id": "g-007"
+    },
+    {
+      "id": "thesis-academic-integrity-008",
+      "source": "thesis",
+      "category": "academic-integrity",
+      "severity": "major",
+      "scope": "document",
+      "locator": {
+        "chapter": "第一章 绪论",
+        "paragraph_index": 2
+      },
+      "excerpt": "",
+      "anchor_text": "作为婚约财产纠纷最普遍的问题，彩礼返还的目的是矫正因婚姻目的落空产生的利益失衡",
+      "problem": "正文中部分观点（如关于彩礼历史沿革的叙述）未标注出处，可能参考了既有文献但未注明来源，存在引用不规范的风险。",
+      "suggestion": [
+        "逐段检查正文中非原创性观点和数据的引用标注",
+        "确保每处引用都有对应的脚注或参考文献",
+        "特别注意历史背景、统计数据、学术观点等非原创性内容的出处标注"
+      ],
+      "group_id": "g-008"
+    },
+    {
+      "id": "citation-citation-format-009",
+      "source": "citation",
+      "category": "citation-format",
+      "severity": "major",
+      "scope": "document",
+      "locator": {
+        "chapter": "参考文献",
+        "paragraph_index": 1
+      },
+      "excerpt": "",
+      "anchor_text": "参考文献",
+      "problem": "参考文献列表中部分条目缺少出版年份、页码等关键信息，格式未完全遵循GB/T 7714-2015标准。",
+      "suggestion": [
+        "按照GB/T 7714-2015标准逐条核对参考文献格式",
+        "确保每条文献包含：作者、题名、文献类型标志、出版地、出版者、出版年、引文页码",
+        "统一英文文献的大小写和标点符号使用规范"
+      ],
+      "group_id": "g-009"
+    },
+    {
+      "id": "citation-citation-missing-info-010",
+      "source": "citation",
+      "category": "citation-missing-info",
+      "severity": "minor",
+      "scope": "document",
+      "locator": {
+        "chapter": "脚注",
+        "paragraph_index": 1
+      },
+      "excerpt": "",
+      "anchor_text": "脚注",
+      "problem": "脚注中部分引用缺少出版地、出版社、页码等必要信息，不符合GB/T 7714顺序编码制的要求。",
+      "suggestion": [
+        "按照'作者.题名[文献类型标志].出版地:出版者,出版年:引文页码.'的格式逐条修正",
+        "检查脚注序号是否与正文引用位置对应"
+      ],
+      "group_id": "g-010"
+    },
+    {
+      "id": "thesis-language-011",
+      "source": "thesis",
+      "category": "language",
+      "severity": "minor",
+      "scope": "document",
+      "locator": {
+        "chapter": "全文",
+        "paragraph_index": 1
+      },
+      "excerpt": "",
+      "anchor_text": "彩礼返还规则研究——基于湖南省法院案例的实证分析",
+      "problem": "论文中交替使用'彩礼返还''彩礼返还规则''彩礼返还机制'等术语，部分语境下含义不完全一致，术语使用不够统一。",
+      "suggestion": [
+        "建议统一核心术语的使用，在首次定义后保持一致性",
+        "在引言中明确界定各术语的含义和适用范围"
+      ],
+      "group_id": "g-011"
+    },
+    {
+      "id": "thesis-argumentation-012",
+      "source": "thesis",
+      "category": "argumentation",
+      "severity": "minor",
+      "scope": "paragraph",
+      "locator": {
+        "chapter": "第一章 绪论",
+        "paragraph_index": 4
+      },
+      "excerpt": "中国可以通过扩大诉讼主体范围、量化彩礼认定标准",
+      "anchor_text": "中国可以通过扩大诉讼主体范围、量化彩礼认定标准",
+      "problem": "论文的选题创新性不足，'扩大诉讼主体范围、量化彩礼认定标准、构建多要素协同的动态体系'等建议在既有文献中已有较多讨论，缺乏原创性贡献。",
+      "suggestion": [
+        "在引言中增设'研究创新点'段落，明确说明本文相较于既有研究的独特贡献",
+        "强调湖南省特定地域的裁判数据分析是否揭示了与全国其他地区不同的裁判倾向",
+        "说明是否发现了司法解释适用中的新问题"
+      ],
+      "group_id": "g-012"
+    }
+  ],
+  "quality_gate": {
+    "total_issues": 12,
+    "substantive_issues": 9,
+    "quality_gate_passed": true
+  }
+}
