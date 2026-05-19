@@ -1,0 +1,244 @@
+{
+  "schema_version": "1.0",
+  "issues": [
+    {
+      "id": "thesis-structure-001",
+      "source": "thesis",
+      "category": "structure",
+      "severity": "major",
+      "scope": "document",
+      "locator": {
+        "chapter": "摘要",
+        "paragraph_index": 1
+      },
+      "excerpt": "",
+      "anchor_text": "基于100份裁判文书发掘的启示",
+      "problem": "副标题'发掘的启示'表述偏文学化，不符合法学学术论文的规范表述习惯，且未体现研究方法的学术性。",
+      "suggestion": [
+        "建议将副标题调整为更学术化的表述，如'——基于100份裁判文书的实证分析'或'——基于裁判文书的类型化研究'。"
+      ],
+      "group_id": "g-001"
+    },
+    {
+      "id": "thesis-empirical-002",
+      "source": "thesis",
+      "category": "empirical",
+      "severity": "major",
+      "scope": "paragraph",
+      "locator": {
+        "chapter": "摘要",
+        "paragraph_index": 2
+      },
+      "excerpt": "物业费及收费标准争议占47%，服务质量争议占28%",
+      "anchor_text": "物业费及收费标准争议占47%，服务质量争议占28%",
+      "problem": "摘要中直接呈现统计数据，但未说明统计方法和分类标准，读者无法判断数据来源的可靠性及分类编码的逻辑。",
+      "suggestion": [
+        "在摘要或正文方法论部分补充统计口径说明，如'通过对100份裁判文书中争议焦点进行类型化编码统计'，并说明编码类目体系。"
+      ],
+      "group_id": "g-002"
+    },
+    {
+      "id": "thesis-argumentation-003",
+      "source": "thesis",
+      "category": "argumentation",
+      "severity": "major",
+      "scope": "sentence",
+      "locator": {
+        "chapter": "摘要",
+        "paragraph_index": 3
+      },
+      "excerpt": "收费标准跟计费依据约定不清，收费请求权因此缺少稳定的规则根基",
+      "anchor_text": "收费请求权因此缺少稳定的规则根基",
+      "problem": "'因此'的因果关系推论不够严密。'约定不清'是合同事实问题，'规则根基缺失'是规范评价问题，两者之间的逻辑转化需要更充分的论证支撑。",
+      "suggestion": [
+        "在正文中补充论证链条：约定不清→合同条款无法为收费请求权提供明确依据→司法裁判中缺乏统一的裁判标准→收费请求权的规则根基不稳。增加中间论证环节。"
+      ],
+      "group_id": "g-003"
+    },
+    {
+      "id": "thesis-empirical-004",
+      "source": "thesis",
+      "category": "empirical",
+      "severity": "major",
+      "scope": "paragraph",
+      "locator": {
+        "chapter": "摘要",
+        "paragraph_index": 4
+      },
+      "excerpt": "以100份裁判文书为样本，综合运用实证分析、规范分析和案例分析等方法",
+      "anchor_text": "以100份裁判文书为样本",
+      "problem": "100份样本量在实证研究中偏小，且裁判文书存在'选择性偏差'——只有进入诉讼的纠纷才形成裁判文书。以诉讼案件反推纠纷预防，存在方法论上的循环论证风险。",
+      "suggestion": [
+        "在绪论或方法论部分专设一段讨论样本局限性：①承认样本量有限；②说明裁判文书无法覆盖未进入诉讼的纠纷；③明确在此局限下研究结论的适用范围和推广边界。"
+      ],
+      "group_id": "g-004"
+    },
+    {
+      "id": "thesis-literature-review-005",
+      "source": "thesis",
+      "category": "literature-review",
+      "severity": "major",
+      "scope": "chapter",
+      "locator": {
+        "chapter": "绪论",
+        "paragraph_index": 1
+      },
+      "excerpt": "",
+      "anchor_text": "物业服务合同纠纷已成为基层社会治理中高频出现的一类民事争议",
+      "problem": "预览内容未显示独立的文献综述部分。作为本科毕业论文，需系统梳理物业服务合同纠纷领域已有研究成果，明确本文的研究空白。",
+      "suggestion": [
+        "在绪论中增设文献综述部分，梳理物业服务合同纠纷的既有研究方向（物业费定价机制、业主权利保障、多元纠纷解决等），明确指出现有研究在'纠纷预防机制'方面的不足，以此确立本文的学术贡献。"
+      ],
+      "group_id": "g-005"
+    },
+    {
+      "id": "thesis-argumentation-006",
+      "source": "thesis",
+      "category": "argumentation",
+      "severity": "major",
+      "scope": "paragraph",
+      "locator": {
+        "chapter": "摘要",
+        "paragraph_index": 5
+      },
+      "excerpt": "异议受理、协商反馈和诉前调解前端程序的供给不足，导致本可在诉前能消解的分歧，直接涌入了诉讼程序",
+      "anchor_text": "本可在诉前能消解的分歧，直接涌入了诉讼程序",
+      "problem": "'本可在诉前能消解的分歧'属于反事实推断，缺乏证据支持。需要论证这些分歧在具备前端程序时确实能被消解，而非仅凭逻辑推演。",
+      "suggestion": [
+        "补充论据支撑：可引用多元纠纷解决机制的实证研究数据（如调解成功率），或通过裁判文书中当事人曾尝试协商但失败的案例反证前端程序的重要性。"
+      ],
+      "group_id": "g-006"
+    },
+    {
+      "id": "thesis-policy-007",
+      "source": "thesis",
+      "category": "policy",
+      "severity": "major",
+      "scope": "paragraph",
+      "locator": {
+        "chapter": "摘要",
+        "paragraph_index": 6
+      },
+      "excerpt": "明确收费项目、计费口径和调价条件的清单化规则",
+      "anchor_text": "明确收费项目、计费口径和调价条件的清单化规则",
+      "problem": "对策建议较为原则化，'清单化规则'的具体内容、法律效力层级、与现有《物业管理条例》的衔接等问题未展开，可操作性不足。",
+      "suggestion": [
+        "在正文对策部分增加具体制度设计：①清单应包含哪些必备项目；②清单的法律效力（合同附件还是行政备案）；③与《民法典》第938条的衔接方式；④违反清单义务的法律后果。"
+      ],
+      "group_id": "g-007"
+    },
+    {
+      "id": "thesis-language-008",
+      "source": "thesis",
+      "category": "language",
+      "severity": "minor",
+      "scope": "sentence",
+      "locator": {
+        "chapter": "摘要",
+        "paragraph_index": 7
+      },
+      "excerpt": "业主对履约状态和收费合理性的信任判断被逐步消解",
+      "anchor_text": "信任判断被逐步消解",
+      "problem": "'信任判断被消解'搭配不够自然，'消解'通常用于抽象事物（如矛盾、焦虑），与'信任判断'搭配略显生硬。",
+      "suggestion": [
+        "改为'业主对履约状态和收费合理性的信任逐步减弱'，或'业主对物业服务企业的信任基础逐步被侵蚀'。"
+      ],
+      "group_id": "g-008"
+    },
+    {
+      "id": "thesis-language-009",
+      "source": "thesis",
+      "category": "language",
+      "severity": "minor",
+      "scope": "sentence",
+      "locator": {
+        "chapter": "Abstract",
+        "paragraph_index": 1
+      },
+      "excerpt": "differences that could have been resolved before the liti...",
+      "anchor_text": "项要是在合同订立阶段就没写明白，收费上的分歧就很难在合同内部消化掉，最后只能涌进诉讼",
+      "problem": "英文摘要中'differences poured into'搭配不当，'differences'（分歧）不会'pour into'（涌入）程序，属于中式英语表达。",
+      "suggestion": [
+        "改为'...disputes that could have been resolved before litigation being directly channeled into the litigation process'，或使用'escalated into litigation'。"
+      ],
+      "group_id": "g-009"
+    },
+    {
+      "id": "thesis-structure-010",
+      "source": "thesis",
+      "category": "structure",
+      "severity": "minor",
+      "scope": "sentence",
+      "locator": {
+        "chapter": "摘要",
+        "paragraph_index": 8
+      },
+      "excerpt": "订立阶段，收费标准跟计费依据约定不清",
+      "anchor_text": "收费标准跟计费依据约定不清",
+      "problem": "摘要中'跟'为口语化表达，学术论文应使用书面语'与'或'和'。",
+      "suggestion": [
+        "将'收费标准跟计费依据'改为'收费标准与计费依据'。"
+      ],
+      "group_id": "g-010"
+    },
+    {
+      "id": "thesis-academic-integrity-011",
+      "source": "thesis",
+      "category": "academic-integrity",
+      "severity": "minor",
+      "scope": "document",
+      "locator": {
+        "chapter": "摘要",
+        "paragraph_index": 9
+      },
+      "excerpt": "",
+      "anchor_text": "综合运用实证分析、规范分析和案例分析等方法",
+      "problem": "实证分析的具体操作路径（文书检索数据库、检索关键词、筛选标准、编码方案、统计工具）未说明，影响研究的可复现性和学术规范性。",
+      "suggestion": [
+        "在正文方法论部分详细说明：①文书检索数据库（如中国裁判文书网）；②检索关键词和筛选条件；③最终纳入分析的100份文书的筛选流程；④编码类目体系和统计分析工具。"
+      ],
+      "group_id": "g-011"
+    },
+    {
+      "id": "citation-citation-format-012",
+      "source": "citation",
+      "category": "citation-format",
+      "severity": "major",
+      "scope": "document",
+      "locator": {
+        "chapter": "参考文献",
+        "paragraph_index": 1
+      },
+      "excerpt": "",
+      "anchor_text": "物业服务合同纠纷已成为基层社会治理中高频出现的一类民事争议",
+      "problem": "预览内容未显示脚注和参考文献，无法验证引注格式是否符合GB/T 7714顺序编码制。需人工全面核查。",
+      "suggestion": [
+        "逐条检查：①参考文献是否按GB/T 7714顺序编码制排列；②期刊论文是否包含作者、题名、期刊名、年份、卷期、页码；③裁判文书引用是否统一标注案号；④网络文献是否标注访问日期。"
+      ],
+      "group_id": "g-012"
+    },
+    {
+      "id": "thesis-argumentation-013",
+      "source": "thesis",
+      "category": "argumentation",
+      "severity": "minor",
+      "scope": "paragraph",
+      "locator": {
+        "chapter": "摘要",
+        "paragraph_index": 10
+      },
+      "excerpt": "将预防机制嵌入合同运行的全过程，对降低这类纠纷的诉讼化程度具有积极意义",
+      "anchor_text": "对降低这类纠纷的诉讼化程度具有积极意义",
+      "problem": "摘要结论部分未回扣具体法律规范，缺乏与《民法典》物业服务合同章或《物业管理条例》的制度衔接意识。",
+      "suggestion": [
+        "在结论中增加一句，说明预防机制的完善与现行法律规范的衔接关系，如'上述预防机制的构建可在《民法典》第937-950条框架内通过合同约定和行业规范予以落实'。"
+      ],
+      "group_id": "g-013"
+    }
+  ],
+  "quality_gate": {
+    "total_issues": 13,
+    "substantive_issues": 8,
+    "quality_gate_passed": true
+  }
+}

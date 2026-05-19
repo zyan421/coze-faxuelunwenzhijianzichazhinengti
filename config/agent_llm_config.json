@@ -1,6 +1,6 @@
 {
   "config": {
-    "model": "deepseek-v4-flash",
+    "model": "deepseek-v4-pro",
     "temperature": 0.3,
     "top_p": 0.9,
     "max_completion_tokens": 16000,
@@ -13,7 +13,7 @@
     "generate_deliverables"
   ],
   "custom_model": {
-    "model": "deepseek-v4-flash",
+    "model": "deepseek-v4-pro",
     "api_key": "sk-e85fc2e2b8ad4475a760b48415f17537",
     "base_url": "https://api.deepseek.com"
   }

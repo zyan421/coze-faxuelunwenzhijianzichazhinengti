@@ -763,8 +763,13 @@ def _upload_to_s3(file_path: str, content_type: str) -> Optional[str]:
             endpoint_url=os.getenv("COZE_BUCKET_ENDPOINT_URL"),
             bucket_name=os.getenv("COZE_BUCKET_NAME"),
         )
-        base_name = os.path.basename(file_path).replace(" ", "_")
-        unique_name = f"papers/{int(time.time())}_{base_name}"
+        import re
+        # Sanitize filename: remove Chinese/special chars, keep only safe ASCII
+        raw_name = os.path.basename(file_path)
+        safe_name = re.sub(r'[^\w\-\.]', '_', raw_name)
+        if not safe_name or safe_name.startswith('_') or safe_name == '_':
+            safe_name = 'document'
+        unique_name = f"papers/{int(time.time())}_{safe_name}"
         with open(file_path, "rb") as f:
             file_key = storage.stream_upload_file(
                 fileobj=f,
