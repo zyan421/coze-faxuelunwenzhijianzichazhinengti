@@ -25,7 +25,10 @@ import time
 import tempfile
 import traceback
 import re
+import logging
 from typing import Any, Dict, List, Optional
+
+logger = logging.getLogger(__name__)
 
 from langchain.tools import tool
 from langchain.agents import create_agent
@@ -95,14 +98,17 @@ def _resolve_auth() -> tuple[str | None, str | None]:
             or os.getenv("OPENAI_BASE_URL")
             or "https://api.deepseek.com"            # DeepSeek 默认地址
         )
+        logger.info(f"[Auth] BYOK mode enabled, base_url={byok_url}, key_prefix={byok_key[:8]}...")
         return byok_key, byok_url
 
     # 平台默认认证：通过工作负载身份交换临时 JWT 令牌
     platform_token = _get_platform_access_token()
     if platform_token:
         platform_url = os.getenv("COZE_INTEGRATION_MODEL_BASE_URL")
+        logger.info(f"[Auth] Platform mode enabled, base_url={platform_url}")
         return platform_token, platform_url
 
+    logger.warning("[Auth] No valid authentication found")
     return None, None
 
 
@@ -894,6 +900,8 @@ def build_agent(ctx=None):
         or cfg["config"]["model"]
     )
     thinking_cfg = cfg["config"].get("thinking", "disabled")
+
+    logger.info(f"[Agent] model={model_name}, base_url={base_url}, key_type={'BYOK' if api_key and not api_key.startswith('eyJ') else 'platform'}")
 
     llm = ChatOpenAI(
         model=model_name,
