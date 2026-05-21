@@ -880,12 +880,14 @@ def _upload_to_s3(file_path: str, content_type: str) -> Optional[str]:
         import re
         # Sanitize filename: remove Chinese/special chars, keep only safe ASCII
         raw_name = os.path.basename(file_path)
-        safe_name = re.sub(r'[^\w\-\.]', '_', raw_name)
+        safe_name = re.sub(r'[^a-zA-Z0-9_\-\.]', '_', raw_name)
         if not safe_name or safe_name.startswith('_') or safe_name == '_':
             safe_name = 'document'
         # 截断避免 S3 key 过长
         safe_name = _truncate_filename(safe_name, max_bytes=180, reserve=0)
         unique_name = f"papers/{int(time.time())}_{safe_name}"
+        # 利用 SDK 的 _sanitize_file_name 进一步净化（转拼音等），确保 key 纯 ASCII
+        unique_name = storage._sanitize_file_name(unique_name)
         with open(file_path, "rb") as f:
             file_key = storage.stream_upload_file(
                 fileobj=f,
