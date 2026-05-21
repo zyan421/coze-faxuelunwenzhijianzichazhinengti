@@ -67,8 +67,8 @@ def _resolve_auth() -> tuple[str | None, str | None]:
     """解析认证信息。
 
     优先级（从高到低）：
-    1. BYOK: CUSTOM_MODEL_API_KEY 环境变量
-    2. BYOK: custom_model.api_key（用户通过 UI 设置，已改为仅内存存储）
+    1. BYOK: 多种环境变量名（兼容用户自定义变量名）
+    2. BYOK: custom_model.api_key（用户通过 UI 设置，仅内存存储）
     3. 平台默认: coze_workload_identity Client 交换临时 access_token
     """
     workspace_path = os.getenv("COZE_WORKSPACE_PATH", "/workspace/projects")
@@ -78,10 +78,23 @@ def _resolve_auth() -> tuple[str | None, str | None]:
         with open(config_path, "r", encoding="utf-8") as f:
             custom = json.load(f).get("custom_model", {})
 
-    # BYOK 模式
-    byok_key = os.getenv("CUSTOM_MODEL_API_KEY") or custom.get("api_key")
+    # BYOK 模式 — 支持多种环境变量名（兼容不同用户的命名习惯）
+    byok_key = (
+        os.getenv("CUSTOM_MODEL_API_KEY")
+        or os.getenv("DEEPSEEK_API_KEY")
+        or os.getenv("deepseek_coze_coding")      # 用户自定义变量名
+        or os.getenv("OPENAI_API_KEY")
+        or os.getenv("COZE_API_KEY")
+        or custom.get("api_key")
+    )
     if byok_key:
-        byok_url = custom.get("base_url") or os.getenv("COZE_INTEGRATION_MODEL_BASE_URL")
+        byok_url = (
+            custom.get("base_url")
+            or os.getenv("CUSTOM_MODEL_BASE_URL")
+            or os.getenv("DEEPSEEK_BASE_URL")
+            or os.getenv("OPENAI_BASE_URL")
+            or "https://api.deepseek.com"            # DeepSeek 默认地址
+        )
         return byok_key, byok_url
 
     # 平台默认认证：通过工作负载身份交换临时 JWT 令牌
@@ -874,7 +887,12 @@ def build_agent(ctx=None):
             "2) 或平台工作负载身份环境变量 COZE_WORKLOAD_IDENTITY_API_KEY 是否有效。"
         )
 
-    model_name = cfg.get("custom_model", {}).get("model") or cfg["config"]["model"]
+    model_name = (
+        os.getenv("CUSTOM_MODEL_NAME")
+        or os.getenv("DEEPSEEK_MODEL")
+        or cfg.get("custom_model", {}).get("model")
+        or cfg["config"]["model"]
+    )
     thinking_cfg = cfg["config"].get("thinking", "disabled")
 
     llm = ChatOpenAI(
