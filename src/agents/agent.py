@@ -383,7 +383,15 @@ def read_paper_file(file_path: str) -> str:
     try:
         resolved = _resolve_local_docx_path(file_path)
         if resolved and os.path.exists(resolved):
-            local_docx_path = resolved
+            # 平台临时文件（如 /mnt/data/xxx）可能在后续被清理，复制到 /tmp 持久化
+            if not resolved.startswith("/tmp"):
+                import hashlib as _hashlib, shutil as _shutil
+                _cache_key = _hashlib.md5(file_path.encode()).hexdigest()
+                persistent_path = f"/tmp/paper_original_{_cache_key}.docx"
+                _shutil.copy2(resolved, persistent_path)
+                local_docx_path = persistent_path
+            else:
+                local_docx_path = resolved
     except Exception:
         pass
 
