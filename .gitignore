@@ -1,48 +1,52 @@
-node_modules
-dist
-.DS_Store
-*.swp
-.git/*
-__pycache__/
-*.pyc
-.venv
-*.o
-*.a
-/vendor
-*.egg-info/
-/.env
+# 环境变量文件（包含敏感信息，绝不可提交）
 .env
+.env.local
+.env.production
 
-# 视频文件
-*.mp4
-*.avi
-*.mov
-*.wmv
-*.flv
-*.mkv
-*.webm
-*.m4v
-*.mpeg
-*.mpg
-*.3gp
-*.f4v
-*.rmvb
-*.vob
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
 
-# 归档文件
-*.iso
-*.dmg
-*.rar
-*.zip
-*.gz
+# 虚拟环境
+.venv/
+venv/
+ENV/
+env/
 
-# 文档类也默认加入
-*.pdf
-*.docx
-*.doc
-*.xlsx
-*.xls
-*.ppt
-*.pptx
-*.xlsx
-*.csv
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# 操作系统
+.DS_Store
+Thumbs.db
+
+# 日志
+*.log
+logs/
+
+# 临时文件
+/tmp/
+*.tmp
+*.bak
