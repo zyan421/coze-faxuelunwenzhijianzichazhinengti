@@ -1,6 +1,6 @@
 {
   "config": {
-    "model": "deepseek-v4-pro",
+    "model": "doubao-pro-32k",
     "temperature": 0.3,
     "top_p": 0.9,
     "max_completion_tokens": 16000,
@@ -13,8 +13,8 @@
     "generate_deliverables"
   ],
   "custom_model": {
-    "model": "deepseek-v4-pro",
+    "model": "",
     "api_key": "",
-    "base_url": "https://api.deepseek.com"
+    "base_url": ""
   }
 }

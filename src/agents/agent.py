@@ -21,6 +21,7 @@
 import os
 import sys
 import json
+import time
 import tempfile
 import traceback
 import re
@@ -38,6 +39,59 @@ from coze_coding_utils.runtime_ctx.context import default_headers
 from coze_coding_utils.log.write_log import request_context
 from coze_coding_utils.runtime_ctx.context import new_context
 from storage.memory.memory_saver import get_memory_saver
+
+# 导入 Coze 工作负载身份认证客户端
+from coze_workload_identity import Client as WorkloadIdentityClient
+
+# 简单的 access_token 缓存（进程级，避免每次请求都交换令牌）
+_access_token_cache = {"token": None, "expiry": 0}
+
+def _get_platform_access_token() -> str | None:
+    """通过 Coze 工作负载身份获取临时 access_token（JWT 格式）。"""
+    global _access_token_cache
+    now = time.time()
+    # 缓存 50 分钟（令牌通常 1 小时过期）
+    if _access_token_cache["token"] and _access_token_cache["expiry"] > now + 600:
+        return _access_token_cache["token"]
+    try:
+        client = WorkloadIdentityClient()
+        token = client.get_access_token()
+        _access_token_cache["token"] = token
+        _access_token_cache["expiry"] = now + 3000  # 50 分钟
+        return token
+    except Exception:
+        return None
+
+
+def _resolve_auth() -> tuple[str | None, str | None]:
+    """解析认证信息。
+
+    优先级（从高到低）：
+    1. BYOK: CUSTOM_MODEL_API_KEY 环境变量
+    2. BYOK: custom_model.api_key（用户通过 UI 设置，已改为仅内存存储）
+    3. 平台默认: coze_workload_identity Client 交换临时 access_token
+    """
+    workspace_path = os.getenv("COZE_WORKSPACE_PATH", "/workspace/projects")
+    config_path = os.path.join(workspace_path, LLM_CONFIG)
+    custom = {}
+    if os.path.exists(config_path):
+        with open(config_path, "r", encoding="utf-8") as f:
+            custom = json.load(f).get("custom_model", {})
+
+    # BYOK 模式
+    byok_key = os.getenv("CUSTOM_MODEL_API_KEY") or custom.get("api_key")
+    if byok_key:
+        byok_url = custom.get("base_url") or os.getenv("COZE_INTEGRATION_MODEL_BASE_URL")
+        return byok_key, byok_url
+
+    # 平台默认认证：通过工作负载身份交换临时 JWT 令牌
+    platform_token = _get_platform_access_token()
+    if platform_token:
+        platform_url = os.getenv("COZE_INTEGRATION_MODEL_BASE_URL")
+        return platform_token, platform_url
+
+    return None, None
+
 
 # ---------------------------------------------------------------------------
 # 常量 / 路径
@@ -811,13 +865,16 @@ def build_agent(ctx=None):
     with open(config_path, "r", encoding="utf-8") as f:
         cfg = json.load(f)
 
-    # 优先使用用户自定义模型配置（BYOK: Bring Your Own Key）
-    # 安全读取顺序：环境变量（内存，不持久化） > 配置文件（已清空api_key） > 平台默认
-    custom = cfg.get("custom_model", {})
-    api_key = os.getenv("CUSTOM_MODEL_API_KEY") or custom.get("api_key") or os.getenv("COZE_WORKLOAD_IDENTITY_API_KEY")
-    base_url = custom.get("base_url") or os.getenv("COZE_INTEGRATION_MODEL_BASE_URL")
-    model_name = custom.get("model") or cfg["config"]["model"]
+    # 解析认证信息：BYOK > 平台工作负载身份
+    api_key, base_url = _resolve_auth()
+    if not api_key:
+        raise RuntimeError(
+            "无法获取模型认证信息。请检查："
+            "1) 是否设置了 CUSTOM_MODEL_API_KEY 环境变量（BYOK 模式）；"
+            "2) 或平台工作负载身份环境变量 COZE_WORKLOAD_IDENTITY_API_KEY 是否有效。"
+        )
 
+    model_name = cfg.get("custom_model", {}).get("model") or cfg["config"]["model"]
     thinking_cfg = cfg["config"].get("thinking", "disabled")
 
     llm = ChatOpenAI(
