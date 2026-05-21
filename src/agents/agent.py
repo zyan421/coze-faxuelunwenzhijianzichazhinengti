@@ -812,8 +812,9 @@ def build_agent(ctx=None):
         cfg = json.load(f)
 
     # 优先使用用户自定义模型配置（BYOK: Bring Your Own Key）
+    # 安全读取顺序：环境变量（内存，不持久化） > 配置文件（已清空api_key） > 平台默认
     custom = cfg.get("custom_model", {})
-    api_key = custom.get("api_key") or os.getenv("COZE_WORKLOAD_IDENTITY_API_KEY")
+    api_key = os.getenv("CUSTOM_MODEL_API_KEY") or custom.get("api_key") or os.getenv("COZE_WORKLOAD_IDENTITY_API_KEY")
     base_url = custom.get("base_url") or os.getenv("COZE_INTEGRATION_MODEL_BASE_URL")
     model_name = custom.get("model") or cfg["config"]["model"]
 

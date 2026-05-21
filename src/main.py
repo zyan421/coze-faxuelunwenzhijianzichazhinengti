@@ -349,23 +349,23 @@ async def save_model_config(request: Request):
         if not model and not api_key:
             # 恢复平台默认模型
             cfg["custom_model"] = {"model": "", "api_key": "", "base_url": ""}
+            os.environ.pop("CUSTOM_MODEL_API_KEY", None)
         elif not model:
             return JSONResponse({"success": False, "error": "模型名称不能为空"}, status_code=400)
         else:
             # 用户指定了模型
             cfg["config"]["model"] = model
+            cfg["custom_model"] = {"model": model, "api_key": "", "base_url": base_url.rstrip("/")}
             if api_key and api_key != "••••••••":
                 # 用户提供了自定义 API Key → BYOK 模式
-                cfg["custom_model"] = {
-                    "model": model,
-                    "api_key": api_key,
-                    "base_url": base_url.rstrip("/")
-                }
+                # 安全处理：API Key 绝不写入配置文件，仅写入环境变量（内存）
+                os.environ["CUSTOM_MODEL_API_KEY"] = api_key
+                logger.info(f"BYOK mode enabled for model={model}, key stored in env (not persisted to disk)")
             else:
                 # 无 API Key → 使用平台默认认证
-                cfg["custom_model"] = {"model": model, "api_key": "", "base_url": ""}
+                os.environ.pop("CUSTOM_MODEL_API_KEY", None)
 
-        # 写入配置
+        # 写入配置（注意：api_key 字段始终为空，不持久化到磁盘）
         with open(config_path, "w", encoding="utf-8") as f:
             json.dump(cfg, f, ensure_ascii=False, indent=2)
 
