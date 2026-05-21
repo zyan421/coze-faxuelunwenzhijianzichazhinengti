@@ -138,6 +138,29 @@ def _utr_tool_path(name: str) -> str:
     return os.path.join(UTR_BUNDLE, "unified-thesis-reviewer", "tools", name)
 
 
+def _truncate_filename(name: str, max_bytes: int = 180, reserve: int = 30) -> str:
+    """截断文件名，确保不超过 max_bytes 字节（UTF-8），保留扩展名。
+    reserve 为给后缀（如 .annotated.docx）预留的字节数。"""
+    if not name:
+        return "document"
+    import os as _os
+    base, ext = _os.path.splitext(name)
+    # 扩展名本身长度
+    ext_bytes = len(ext.encode("utf-8"))
+    # 留给 base 的最大字节数
+    available = max_bytes - ext_bytes - reserve
+    if available < 10:
+        available = 10
+    encoded = base.encode("utf-8")
+    if len(encoded) <= available:
+        return name
+    # 截断到 available 字节，且以完整字符结尾
+    truncated = encoded[:available]
+    while truncated and (truncated[-1] & 0xC0) == 0x80:
+        truncated = truncated[:-1]
+    return truncated.decode("utf-8", errors="ignore") + ext
+
+
 def _download_url_to_binary(url: str) -> tuple[bytes, str]:
     """下载 URL 内容，返回 (二进制数据, 文件名)。支持带 query string 的 URL。"""
     import requests
@@ -177,7 +200,8 @@ def _resolve_local_docx_path(file_path: str) -> str:
         data, fname = _download_url_to_binary(path)
         if not fname.endswith(".docx"):
             fname += ".docx"
-        tmp_path = os.path.join("/tmp", f"utr_{int(__import__('time').time())}_{fname}")
+        safe_fname = _truncate_filename(fname, max_bytes=180, reserve=40)
+        tmp_path = os.path.join("/tmp", f"utr_{int(__import__('time').time())}_{safe_fname}")
         with open(tmp_path, "wb") as f:
             f.write(data)
         return tmp_path
@@ -693,6 +717,10 @@ def generate_deliverables(docx_path: str, issues_json: str, analysis_summary: st
                 if resolved_path and os.path.exists(resolved_path):
                     # 写入临时 issues.json
                     debug_path = resolved_path.replace(".docx", ".debug.issues.json")
+                    debug_dir = os.path.dirname(debug_path)
+                    debug_name = os.path.basename(debug_path)
+                    debug_name = _truncate_filename(debug_name, max_bytes=200, reserve=0)
+                    debug_path = os.path.join(debug_dir, debug_name)
                     with open(debug_path, "w", encoding="utf-8") as f:
                         json.dump(issues_data, f, ensure_ascii=False, indent=2)
 
@@ -718,6 +746,11 @@ def generate_deliverables(docx_path: str, issues_json: str, analysis_summary: st
                         temp_issues.close()
 
                         out_path = resolved_path.replace(".docx", ".annotated.docx")
+                        # 确保文件名不超过系统限制（Linux 255 字节）
+                        out_dir = os.path.dirname(out_path)
+                        out_name = os.path.basename(out_path)
+                        out_name = _truncate_filename(out_name, max_bytes=200, reserve=0)
+                        out_path = os.path.join(out_dir, out_name)
                         proc = subprocess.run(
                             [sys.executable, inject_script, resolved_path, temp_issues.name, out_path],
                             capture_output=True, text=True, timeout=180
@@ -842,6 +875,8 @@ def _upload_to_s3(file_path: str, content_type: str) -> Optional[str]:
         safe_name = re.sub(r'[^\w\-\.]', '_', raw_name)
         if not safe_name or safe_name.startswith('_') or safe_name == '_':
             safe_name = 'document'
+        # 截断避免 S3 key 过长
+        safe_name = _truncate_filename(safe_name, max_bytes=180, reserve=0)
         unique_name = f"papers/{int(time.time())}_{safe_name}"
         with open(file_path, "rb") as f:
             file_key = storage.stream_upload_file(
