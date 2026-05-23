@@ -376,37 +376,55 @@ def _read_text(file_path: str) -> dict:
 # @tool 函数
 # ---------------------------------------------------------------------------
 @tool
+def _is_valid_docx(path: str) -> bool:
+    """通过 python-docx 验证文件是否为真实有效的 docx。"""
+    try:
+        from docx import Document
+        Document(path)
+        return True
+    except Exception:
+        return False
+
+
 def read_paper_file(file_path: str) -> str:
     """读取论文文件内容。file_path 可以是本地路径、公网 URL 或 Coze 平台 file_id。"""
-    # 先读取文本内容（_read_text 会触发生成平台临时文件）
-    result = _read_text(file_path)
-    if not result["success"]:
-        logger.warning(f"[read_paper_file] _read_text failed for {file_path}: {result.get('error')}")
-        return json.dumps(result, ensure_ascii=False)
-    paper_text = result["text"]
-    logger.info(f"[read_paper_file] Text read success, chars={len(paper_text)}")
-
-    # 再解析本地 docx 路径并复制到 /tmp 持久化
-    # 放在 _read_text 之后，因为平台临时文件在 _read_text 调用时最可能还存在
+    # Step 1: 先解析本地路径（平台临时文件可能很快被清理）
     local_docx_path = ""
+    read_path = file_path
     try:
         resolved = _resolve_local_docx_path(file_path)
         logger.info(f"[read_paper_file] Resolved path: {resolved}")
         if resolved and os.path.exists(resolved):
-            if not resolved.startswith("/tmp"):
-                import hashlib as _hashlib, shutil as _shutil
-                _cache_key = _hashlib.md5(file_path.encode()).hexdigest()
-                persistent_path = f"/tmp/paper_original_{_cache_key}.docx"
-                _shutil.copy2(resolved, persistent_path)
-                local_docx_path = persistent_path
-                logger.info(f"[read_paper_file] Copied to {persistent_path}")
+            if _is_valid_docx(resolved):
+                # 有效 docx：复制到 /tmp 持久化
+                if not resolved.startswith("/tmp"):
+                    import hashlib as _hashlib, shutil as _shutil
+                    _cache_key = _hashlib.md5(file_path.encode()).hexdigest()
+                    persistent_path = f"/tmp/paper_original_{_cache_key}.docx"
+                    _shutil.copy2(resolved, persistent_path)
+                    local_docx_path = persistent_path
+                    read_path = persistent_path
+                    logger.info(f"[read_paper_file] Valid docx copied to {persistent_path}")
+                else:
+                    local_docx_path = resolved
+                    read_path = resolved
+                    logger.info(f"[read_paper_file] Using existing /tmp docx: {resolved}")
             else:
-                local_docx_path = resolved
-                logger.info(f"[read_paper_file] Using existing /tmp path: {resolved}")
+                # 不是有效 docx（如 PDF 被伪装为 docx），仍可用该路径读取文本
+                read_path = resolved
+                logger.info(f"[read_paper_file] Resolved file is not valid docx, reading as original format")
         else:
             logger.warning(f"[read_paper_file] Resolved path not exists: {resolved}")
     except Exception as e:
         logger.warning(f"[read_paper_file] Resolve/copy failed: {e}")
+
+    # Step 2: 读取文本内容
+    result = _read_text(read_path)
+    if not result["success"]:
+        logger.warning(f"[read_paper_file] _read_text failed for {read_path}: {result.get('error')}")
+        return json.dumps(result, ensure_ascii=False)
+    paper_text = result["text"]
+    logger.info(f"[read_paper_file] Text read success, chars={len(paper_text)}")
 
     # 论文文本太长（可能10万+字符），不传给LLM以避免上下文溢出
     # 改为存储在/tmp，供后续工具直接访问
@@ -430,6 +448,103 @@ def read_paper_file(file_path: str) -> str:
         "full_text_available": True,
         "note": "完整论文内容已缓存，generate_deliverables 将读取全文生成批注"
     }, ensure_ascii=False)
+
+
+# ---------------------------------------------------------------------------
+# 辅助函数：确保 docx 有效性，支持 PDF/文本降级转换
+# ---------------------------------------------------------------------------
+def _ensure_valid_docx(file_path: str) -> Optional[str]:
+    """确保 file_path 是一个有效的 docx 文件。如果不是，尝试转换或创建新的 docx。
+    返回有效的 docx 路径，或 None（如果无法创建）。"""
+    if not file_path or not os.path.exists(file_path):
+        return None
+
+    # 尝试验证是否为真实 docx
+    try:
+        from docx import Document
+        Document(file_path)
+        return file_path
+    except Exception:
+        pass
+
+    # 不是有效 docx，尝试读取文件内容判断真实格式
+    try:
+        with open(file_path, "rb") as f:
+            header = f.read(8)
+        is_pdf = header.startswith(b"%PDF")
+
+        if is_pdf:
+            # PDF 文件：提取文本并创建新的 docx
+            import pypdf
+            reader = pypdf.PdfReader(file_path)
+            from docx import Document
+            new_doc = Document()
+            for page in reader.pages:
+                text = page.extract_text()
+                if text:
+                    for line in text.split('\n'):
+                        line = line.strip()
+                        if line:
+                            new_doc.add_paragraph(line)
+            tmp_path = f"/tmp/converted_pdf_{int(time.time())}.docx"
+            new_doc.save(tmp_path)
+            logger.info(f"[_ensure_valid_docx] Converted PDF to docx: {tmp_path}")
+            return tmp_path
+
+        # 尝试作为文本读取
+        try:
+            with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+                text = f.read()
+            from docx import Document
+            new_doc = Document()
+            for line in text.split('\n'):
+                line = line.strip()
+                if line:
+                    new_doc.add_paragraph(line)
+            tmp_path = f"/tmp/converted_txt_{int(time.time())}.docx"
+            new_doc.save(tmp_path)
+            logger.info(f"[_ensure_valid_docx] Converted text to docx: {tmp_path}")
+            return tmp_path
+        except Exception:
+            pass
+    except Exception:
+        pass
+
+    return None
+
+
+def _recover_docx_from_cache(docx_path_hint: str = "") -> Optional[str]:
+    """如果 docx_path 无效，尝试从 /tmp/paper_cache_*.pkl 中恢复论文文本并创建 docx。"""
+    try:
+        import glob, pickle
+        cache_files = glob.glob("/tmp/paper_cache_*.pkl")
+        if not cache_files:
+            return None
+
+        # 按修改时间排序，取最新的
+        cache_files.sort(key=os.path.getmtime, reverse=True)
+        for cache_file in cache_files:
+            try:
+                with open(cache_file, "rb") as f:
+                    cache = pickle.load(f)
+                text = cache.get("text", "")
+                if not text:
+                    continue
+                from docx import Document
+                new_doc = Document()
+                for line in text.split('\n'):
+                    line = line.strip()
+                    if line:
+                        new_doc.add_paragraph(line)
+                tmp_path = f"/tmp/recovered_{int(time.time())}.docx"
+                new_doc.save(tmp_path)
+                logger.info(f"[_recover_docx_from_cache] Recovered docx from cache: {tmp_path}")
+                return tmp_path
+            except Exception:
+                continue
+    except Exception:
+        pass
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -748,6 +863,17 @@ def generate_deliverables(docx_path: str, issues_json: str, analysis_summary: st
                     except Exception as e2:
                         logger.warning(f"[generate_deliverables] Re-resolve failed: {e2}")
 
+                # 确保 resolved_path 指向有效 docx（支持 PDF/文本降级转换）
+                if resolved_path and os.path.exists(resolved_path):
+                    valid_docx = _ensure_valid_docx(resolved_path)
+                    if not valid_docx:
+                        valid_docx = _recover_docx_from_cache(docx_path)
+                    if valid_docx:
+                        resolved_path = valid_docx
+                    else:
+                        results["annotated_docx"]["error"] = "无法获取有效的 docx 文件（上传的论文不是 .docx 格式或文件已失效），已跳过批注文档生成"
+                        resolved_path = None
+
                 if resolved_path and os.path.exists(resolved_path):
                     # 写入临时 issues.json
                     debug_path = resolved_path.replace(".docx", ".debug.issues.json")
@@ -808,7 +934,43 @@ def generate_deliverables(docx_path: str, issues_json: str, analysis_summary: st
         except Exception as e:
             results["annotated_docx"]["error"] = f"生成批注文档异常: {str(e)}"
     else:
-        results["annotated_docx"]["error"] = "未提供 docx_path，跳过批注文档生成"
+        # docx_path 为空，尝试从缓存恢复
+        recovered = _recover_docx_from_cache("")
+        if recovered:
+            docx_path = recovered
+            # 重新尝试生成（复用上面的逻辑）
+            try:
+                import subprocess
+                inject_script = _utr_tool_path("inject-docx-comments.py")
+                if os.path.exists(inject_script):
+                    temp_issues = tempfile.NamedTemporaryFile(
+                        mode="w", suffix=".json", delete=False, encoding="utf-8"
+                    )
+                    json.dump(issues_data, temp_issues, ensure_ascii=False, indent=2)
+                    temp_issues.close()
+                    out_path = docx_path.replace(".docx", ".annotated.docx")
+                    out_name = os.path.basename(out_path)
+                    out_name = _truncate_filename(out_name, max_bytes=200, reserve=0)
+                    out_path = os.path.join(os.path.dirname(out_path), out_name)
+                    proc = subprocess.run(
+                        [sys.executable, inject_script, docx_path, temp_issues.name, out_path],
+                        capture_output=True, text=True, timeout=180
+                    )
+                    os.unlink(temp_issues.name)
+                    if proc.returncode == 0:
+                        download_url = _upload_to_s3(out_path, "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+                        if download_url:
+                            results["annotated_docx"] = {"success": True, "url": download_url}
+                        else:
+                            results["annotated_docx"] = {"success": True, "url": out_path, "note": "本地路径"}
+                    else:
+                        results["annotated_docx"]["error"] = proc.stderr or "批注注入脚本返回非零退出码"
+                else:
+                    results["annotated_docx"]["error"] = f"批注注入脚本不存在: {inject_script}"
+            except Exception as e:
+                results["annotated_docx"]["error"] = f"生成批注文档异常: {str(e)}"
+        else:
+            results["annotated_docx"]["error"] = "未提供 docx_path 且无法从缓存恢复论文内容，跳过批注文档生成"
 
     # ── Step 3: 生成 PDF 审查报告 ──
     try:
@@ -971,6 +1133,10 @@ def build_agent(ctx=None):
 
     logger.info(f"[Agent] model={model_name}, base_url={base_url}, key_type={'BYOK' if api_key and not api_key.startswith('eyJ') else 'platform'}")
 
+    extra_body = {}
+    if thinking_cfg == "enabled":
+        extra_body = {"thinking": {"type": "enabled"}}
+
     llm = ChatOpenAI(
         model=model_name,
         api_key=api_key,
@@ -979,11 +1145,7 @@ def build_agent(ctx=None):
         max_completion_tokens=cfg["config"].get("max_completion_tokens", 32768),
         streaming=True,
         timeout=cfg["config"]["timeout"],
-        extra_body={
-            "thinking": {
-                "type": "enabled" if thinking_cfg == "enabled" else "disabled"
-            }
-        },
+        extra_body=extra_body,
         default_headers=default_headers(ctx) if ctx else {}
     )
 
