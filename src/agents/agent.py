@@ -1091,6 +1091,44 @@ def _upload_to_s3(file_path: str, content_type: str) -> Optional[str]:
 
 
 # ---------------------------------------------------------------------------
+# DeepSeek V4 thinking mode 兼容补丁
+# ---------------------------------------------------------------------------
+# DeepSeek V4 系列模型（deepseek-v4-pro / deepseek-v4-flash）默认开启思考模式，
+# 当响应包含 tool_calls 时，后续请求必须原样回传 reasoning_content，否则报 400。
+# langchain-openai 默认不处理 reasoning_content，这里通过 monkey-patch 修复。
+# ---------------------------------------------------------------------------
+def _apply_deepseek_v4_patch():
+    """Monkey-patch langchain_openai 以支持 reasoning_content 回传。"""
+    try:
+        import langchain_openai.chat_models.base as lc_base
+        from langchain_core.messages import AIMessage
+
+        # 保存原始函数
+        _orig_dict_to_msg = lc_base._convert_dict_to_message
+        _orig_msg_to_dict = lc_base._convert_message_to_dict
+
+        def _patched_dict_to_message(_dict):
+            msg = _orig_dict_to_msg(_dict)
+            # 将响应中的 reasoning_content 保存到 AIMessage.additional_kwargs
+            if isinstance(msg, AIMessage) and "reasoning_content" in _dict:
+                msg.additional_kwargs["reasoning_content"] = _dict["reasoning_content"]
+            return msg
+
+        def _patched_msg_to_dict(message, api="chat/completions"):
+            result = _orig_msg_to_dict(message, api)
+            # 将 AIMessage.additional_kwargs 中的 reasoning_content 回传到请求
+            if isinstance(message, AIMessage) and message.additional_kwargs.get("reasoning_content"):
+                result["reasoning_content"] = message.additional_kwargs["reasoning_content"]
+            return result
+
+        lc_base._convert_dict_to_message = _patched_dict_to_message
+        lc_base._convert_message_to_dict = _patched_msg_to_dict
+        logger.info("[DeepSeekPatch] reasoning_content 兼容补丁已应用")
+    except Exception as e:
+        logger.warning(f"[DeepSeekPatch] 应用补丁失败（不影响正常运行）: {e}")
+
+
+# ---------------------------------------------------------------------------
 # 错误处理中间件
 # ---------------------------------------------------------------------------
 @wrap_tool_call
@@ -1126,12 +1164,17 @@ def build_agent(ctx=None):
     model_name = (
         os.getenv("CUSTOM_MODEL_NAME")
         or os.getenv("DEEPSEEK_MODEL")
+        or os.getenv("model_name")                 # 兼容用户自定义变量名
         or cfg.get("custom_model", {}).get("model")
         or cfg["config"]["model"]
     )
     thinking_cfg = cfg["config"].get("thinking", "disabled")
 
     logger.info(f"[Agent] model={model_name}, base_url={base_url}, key_type={'BYOK' if api_key and not api_key.startswith('eyJ') else 'platform'}")
+
+    # DeepSeek V4 系列需要 reasoning_content 兼容补丁
+    if "deepseek-v4" in model_name.lower():
+        _apply_deepseek_v4_patch()
 
     extra_body = {}
     if thinking_cfg == "enabled":
