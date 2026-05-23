@@ -1101,11 +1101,12 @@ def _apply_deepseek_v4_patch():
     """Monkey-patch langchain_openai 以支持 reasoning_content 回传。"""
     try:
         import langchain_openai.chat_models.base as lc_base
-        from langchain_core.messages import AIMessage
+        from langchain_core.messages import AIMessage, AIMessageChunk
 
         # 保存原始函数
         _orig_dict_to_msg = lc_base._convert_dict_to_message
         _orig_msg_to_dict = lc_base._convert_message_to_dict
+        _orig_delta_to_chunk = lc_base._convert_delta_to_message_chunk
 
         def _patched_dict_to_message(_dict):
             msg = _orig_dict_to_msg(_dict)
@@ -1114,15 +1115,23 @@ def _apply_deepseek_v4_patch():
                 msg.additional_kwargs["reasoning_content"] = _dict["reasoning_content"]
             return msg
 
-        def _patched_msg_to_dict(message, api="chat/completions"):
-            result = _orig_msg_to_dict(message, api)
+        def _patched_msg_to_dict(message):
+            result = _orig_msg_to_dict(message)
             # 将 AIMessage.additional_kwargs 中的 reasoning_content 回传到请求
             if isinstance(message, AIMessage) and message.additional_kwargs.get("reasoning_content"):
                 result["reasoning_content"] = message.additional_kwargs["reasoning_content"]
             return result
 
+        def _patched_delta_to_chunk(_dict, default_class):
+            chunk = _orig_delta_to_chunk(_dict, default_class)
+            # 流式模式下将 reasoning_content 保存到 AIMessageChunk.additional_kwargs
+            if isinstance(chunk, AIMessageChunk) and "reasoning_content" in _dict:
+                chunk.additional_kwargs["reasoning_content"] = _dict["reasoning_content"]
+            return chunk
+
         lc_base._convert_dict_to_message = _patched_dict_to_message
         lc_base._convert_message_to_dict = _patched_msg_to_dict
+        lc_base._convert_delta_to_message_chunk = _patched_delta_to_chunk
         logger.info("[DeepSeekPatch] reasoning_content 兼容补丁已应用")
     except Exception as e:
         logger.warning(f"[DeepSeekPatch] 应用补丁失败（不影响正常运行）: {e}")
