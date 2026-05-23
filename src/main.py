@@ -273,28 +273,48 @@ async def serve_ui():
 
 @app.post("/upload")
 async def upload_file(file: UploadFile = FastAPIFile(...)):
-    """上传论文文件，保存到 /tmp 并返回路径"""
-    import os, uuid, shutil
+    """上传论文文件到 S3 并返回预签名下载 URL"""
+    import os, uuid, re, io
+    from coze_coding_dev_sdk.s3 import S3SyncStorage
+
     allowed_ext = {'.docx', '.pdf', '.txt', '.md'}
     ext = os.path.splitext(file.filename or "")[1].lower()
     if ext not in allowed_ext:
         return JSONResponse({"success": False, "error": f"不支持的格式 {ext}，请上传 {', '.join(allowed_ext)} 文件"}, status_code=400)
-    
-    # Save to workspace assets dir (same filesystem as Agent tools)
-    workspace = os.getenv("COZE_WORKSPACE_PATH", "/workspace/projects")
-    upload_dir = os.path.join(workspace, "assets", "uploads")
-    os.makedirs(upload_dir, exist_ok=True)
-    unique_name = f"{uuid.uuid4().hex[:8]}_{file.filename}"
-    save_path = os.path.join(upload_dir, unique_name)
-    with open(save_path, "wb") as f:
-        shutil.copyfileobj(file.file, f)
-    
+
+    # 读取文件内容
+    content = await file.read()
+    size = len(content)
+
+    # 使用短 UUID 作为 S3 key，避免长文件名导致签名问题
+    safe_name = re.sub(r'[^a-zA-Z0-9_\-\.]', '_', file.filename or "document")
+    if not safe_name or safe_name == '_':
+        safe_name = "document"
+    short_key = f"uploads/{uuid.uuid4().hex[:16]}{ext}"
+
+    # 上传到 S3
+    storage = S3SyncStorage()
+    content_type_map = {
+        '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        '.pdf': 'application/pdf',
+        '.txt': 'text/plain',
+        '.md': 'text/markdown',
+    }
+    s3_key = storage.upload_file(
+        file_content=content,
+        file_name=short_key,
+        content_type=content_type_map.get(ext, 'application/octet-stream')
+    )
+
+    # 生成 24 小时预签名 URL
+    download_url = storage.generate_presigned_url(key=s3_key, expire_time=86400)
+
     return JSONResponse({
         "success": True,
-        "file_path": save_path,
-        "file_name": file.filename,
+        "file_path": download_url,
+        "file_name": safe_name,
         "format": ext.lstrip('.'),
-        "size": os.path.getsize(save_path)
+        "size": size
     })
 
 # ---------------------------------------------------------------------------

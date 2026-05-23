@@ -378,27 +378,35 @@ def _read_text(file_path: str) -> dict:
 @tool
 def read_paper_file(file_path: str) -> str:
     """读取论文文件内容。file_path 可以是本地路径、公网 URL 或 Coze 平台 file_id。"""
-    # 先尝试解析本地路径（供后续 generate_deliverables 使用）
+    # 先读取文本内容（_read_text 会触发生成平台临时文件）
+    result = _read_text(file_path)
+    if not result["success"]:
+        logger.warning(f"[read_paper_file] _read_text failed for {file_path}: {result.get('error')}")
+        return json.dumps(result, ensure_ascii=False)
+    paper_text = result["text"]
+    logger.info(f"[read_paper_file] Text read success, chars={len(paper_text)}")
+
+    # 再解析本地 docx 路径并复制到 /tmp 持久化
+    # 放在 _read_text 之后，因为平台临时文件在 _read_text 调用时最可能还存在
     local_docx_path = ""
     try:
         resolved = _resolve_local_docx_path(file_path)
+        logger.info(f"[read_paper_file] Resolved path: {resolved}")
         if resolved and os.path.exists(resolved):
-            # 平台临时文件（如 /mnt/data/xxx）可能在后续被清理，复制到 /tmp 持久化
             if not resolved.startswith("/tmp"):
                 import hashlib as _hashlib, shutil as _shutil
                 _cache_key = _hashlib.md5(file_path.encode()).hexdigest()
                 persistent_path = f"/tmp/paper_original_{_cache_key}.docx"
                 _shutil.copy2(resolved, persistent_path)
                 local_docx_path = persistent_path
+                logger.info(f"[read_paper_file] Copied to {persistent_path}")
             else:
                 local_docx_path = resolved
-    except Exception:
-        pass
-
-    result = _read_text(file_path)
-    if not result["success"]:
-        return json.dumps(result, ensure_ascii=False)
-    paper_text = result["text"]
+                logger.info(f"[read_paper_file] Using existing /tmp path: {resolved}")
+        else:
+            logger.warning(f"[read_paper_file] Resolved path not exists: {resolved}")
+    except Exception as e:
+        logger.warning(f"[read_paper_file] Resolve/copy failed: {e}")
 
     # 论文文本太长（可能10万+字符），不传给LLM以避免上下文溢出
     # 改为存储在/tmp，供后续工具直接访问
@@ -722,6 +730,24 @@ def generate_deliverables(docx_path: str, issues_json: str, analysis_summary: st
                     results["annotated_docx"]["error"] = f"原始 docx 文件无法获取: {str(fe)}"
                     resolved_path = None
 
+                # fallback：如果本地路径不存在，尝试重新从平台获取（file_id 或 URL）
+                if not resolved_path or not os.path.exists(resolved_path):
+                    logger.warning(f"[generate_deliverables] docx_path not exists locally: {docx_path}, trying re-resolve")
+                    try:
+                        fallback = _resolve_local_docx_path(docx_path)
+                        if fallback and os.path.exists(fallback):
+                            resolved_path = fallback
+                            logger.info(f"[generate_deliverables] Re-resolved to: {fallback}")
+                            # 复制到 /tmp 防止再次被清理
+                            if not fallback.startswith("/tmp"):
+                                import shutil as _shutil2
+                                _fb_path = f"/tmp/paper_fallback_{int(__import__('time').time())}.docx"
+                                _shutil2.copy2(fallback, _fb_path)
+                                resolved_path = _fb_path
+                                logger.info(f"[generate_deliverables] Copied fallback to: {_fb_path}")
+                    except Exception as e2:
+                        logger.warning(f"[generate_deliverables] Re-resolve failed: {e2}")
+
                 if resolved_path and os.path.exists(resolved_path):
                     # 写入临时 issues.json
                     debug_path = resolved_path.replace(".docx", ".debug.issues.json")
@@ -877,17 +903,14 @@ def _upload_to_s3(file_path: str, content_type: str) -> Optional[str]:
             endpoint_url=os.getenv("COZE_BUCKET_ENDPOINT_URL"),
             bucket_name=os.getenv("COZE_BUCKET_NAME"),
         )
-        import re
-        # Sanitize filename: remove Chinese/special chars, keep only safe ASCII
+        import re, uuid as _uuid
         raw_name = os.path.basename(file_path)
         safe_name = re.sub(r'[^a-zA-Z0-9_\-\.]', '_', raw_name)
         if not safe_name or safe_name.startswith('_') or safe_name == '_':
             safe_name = 'document'
-        # 截断避免 S3 key 过长
-        safe_name = _truncate_filename(safe_name, max_bytes=180, reserve=0)
-        unique_name = f"papers/{int(time.time())}_{safe_name}"
-        # 利用 SDK 的 _sanitize_file_name 进一步净化（转拼音等），确保 key 纯 ASCII
-        unique_name = storage._sanitize_file_name(unique_name)
+        ext = os.path.splitext(safe_name)[1].lower() or ".bin"
+        # 使用短 UUID 作为 S3 key，避免中文/过长文件名导致签名问题
+        unique_name = f"papers/{int(time.time())}_{_uuid.uuid4().hex[:8]}{ext}"
         with open(file_path, "rb") as f:
             file_key = storage.stream_upload_file(
                 fileobj=f,
