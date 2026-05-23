@@ -257,7 +257,17 @@ app = FastAPI()
 # 自定义 UI 静态页面
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+from fastapi.middleware.cors import CORSMiddleware
 import os as _os
+
+# CORS 中间件，允许前端跨域调用 API
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 _ui_dir = _os.path.join(_os.getenv("COZE_WORKSPACE_PATH", "/workspace/projects"), "assets", "ui")
 if _os.path.isdir(_ui_dir):

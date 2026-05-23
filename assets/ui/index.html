@@ -1040,10 +1040,23 @@ async function loadCurrentConfig() {
   } catch {}
 }
 
+function isWebSdkEnv() {
+  // Web SDK 环境下页面通常托管在 code.coze.cn 域名
+  return location.hostname.includes('code.coze.cn') || location.pathname.includes('/web-sdk/');
+}
+
 async function testModelConnectivity(model, baseUrl, apiKey) {
   const resultEl = document.getElementById('testResult');
   resultEl.style.display = 'none';
   resultEl.className = 'test-result';
+
+  // Web SDK 环境下无法直接调用项目后端 API
+  if (isWebSdkEnv()) {
+    resultEl.className = 'test-result fail';
+    resultEl.innerHTML = `⚠️ 当前通过 Web SDK 预览访问，模型测试功能不可用。<br>请通过<b>项目部署 URL</b>（如 https://your-project.coze.site/ui/）访问后，再进行模型设置与测试。`;
+    resultEl.style.display = 'block';
+    return false;
+  }
 
   try {
     const resp = await fetch(apiBase + '/api/test-model', {
@@ -1063,7 +1076,14 @@ async function testModelConnectivity(model, baseUrl, apiKey) {
     return data.success;
   } catch (e) {
     resultEl.className = 'test-result fail';
-    resultEl.innerHTML = `❌ 测试请求失败: ${e.message}`;
+    let msg = `❌ 测试请求失败: ${e.message}`;
+    if (e.message && e.message.toLowerCase().includes('failed to fetch')) {
+      msg += `<br><br><b>可能原因：</b>`;
+      msg += `<br>1. 您正在通过 Web SDK 预览访问，模型测试功能需要在项目部署 URL 下使用。`;
+      msg += `<br>2. 后端服务未启动或网络连接异常。`;
+      msg += `<br>3. 浏览器安全策略阻止了跨域请求。`;
+    }
+    resultEl.innerHTML = msg;
     resultEl.style.display = 'block';
     return false;
   }
