@@ -395,24 +395,20 @@ def read_paper_file(file_path: str) -> str:
         resolved = _resolve_local_docx_path(file_path)
         logger.info(f"[read_paper_file] Resolved path: {resolved}")
         if resolved and os.path.exists(resolved):
-            if _is_valid_docx(resolved):
-                # 有效 docx：复制到 /tmp 持久化
-                if not resolved.startswith("/tmp"):
-                    import hashlib as _hashlib, shutil as _shutil
-                    _cache_key = _hashlib.md5(file_path.encode()).hexdigest()
-                    persistent_path = f"/tmp/paper_original_{_cache_key}.docx"
-                    _shutil.copy2(resolved, persistent_path)
-                    local_docx_path = persistent_path
-                    read_path = persistent_path
-                    logger.info(f"[read_paper_file] Valid docx copied to {persistent_path}")
-                else:
-                    local_docx_path = resolved
-                    read_path = resolved
-                    logger.info(f"[read_paper_file] Using existing /tmp docx: {resolved}")
+            # 无论 python-docx 能否打开，只要文件存在就保留路径。
+            # inject-docx-comments.py 使用底层 XML 操作，不依赖 python-docx 的 Document()。
+            if not resolved.startswith("/tmp"):
+                import hashlib as _hashlib, shutil as _shutil
+                _cache_key = _hashlib.md5(file_path.encode()).hexdigest()
+                persistent_path = f"/tmp/paper_original_{_cache_key}.docx"
+                _shutil.copy2(resolved, persistent_path)
+                local_docx_path = persistent_path
+                read_path = persistent_path
+                logger.info(f"[read_paper_file] Copied to {persistent_path} (valid_docx={_is_valid_docx(resolved)})")
             else:
-                # 不是有效 docx（如 PDF 被伪装为 docx），仍可用该路径读取文本
+                local_docx_path = resolved
                 read_path = resolved
-                logger.info(f"[read_paper_file] Resolved file is not valid docx, reading as original format")
+                logger.info(f"[read_paper_file] Using existing /tmp path: {resolved} (valid_docx={_is_valid_docx(resolved)})")
         else:
             logger.warning(f"[read_paper_file] Resolved path not exists: {resolved}")
     except Exception as e:

@@ -248,14 +248,11 @@ def validate_issues_json(data: Any, *, input_is_pdf: bool = False) -> list[str]:
                 errors.append(f"{ctx}.group_id: pattern mismatch, got {gid!r}")
             gkey = (it.get("source"), it.get("category"),
                     loc.get("chapter"), loc.get("paragraph_index"))
+            # 同一 (source, category, chapter, paragraph_index) 只能有一个 group_id
             if gkey in group_key_to_gid and group_key_to_gid[gkey] != gid:
                 errors.append(
                     f"{ctx}.group_id: inconsistent; key {gkey} previously mapped to "
                     f"{group_key_to_gid[gkey]!r}, got {gid!r}"
-                )
-            elif gid in gid_to_group_key and gid_to_group_key[gid] != gkey:
-                errors.append(
-                    f"{ctx}.group_id: {gid!r} reused across different keys"
                 )
             else:
                 group_key_to_gid[gkey] = gid
